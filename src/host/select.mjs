@@ -1,0 +1,162 @@
+/**
+ * Decides which text in a file the linter may see.
+ *
+ * Every function here returns a string of the SAME line count as its input, and
+ * blanks the rest. The Gleam engine then reports a line number that matches the
+ * real file, with no offset arithmetic in the host.
+ */
+
+const PROSE_EXTENSIONS = new Set([".md", ".mdx", ".markdown", ".txt", ".rst"]);
+
+const LINE_COMMENT = {
+  ".ts": "//",
+  ".tsx": "//",
+  ".js": "//",
+  ".mjs": "//",
+  ".cjs": "//",
+  ".jsx": "//",
+  ".gleam": "//",
+  ".go": "//",
+  ".rs": "//",
+  ".swift": "//",
+  ".kt": "//",
+  ".java": "//",
+  ".c": "//",
+  ".h": "//",
+  ".cpp": "//",
+  ".sh": "#",
+  ".bash": "#",
+  ".zsh": "#",
+  ".py": "#",
+  ".rb": "#",
+  ".yml": "#",
+  ".yaml": "#",
+  ".toml": "#",
+  ".just": "#",
+};
+
+function extensionOf(path) {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  return dot <= 0 ? "" : base.slice(dot).toLowerCase();
+}
+
+function blank(text) {
+  return " ".repeat(text.length);
+}
+
+/** Keeps only `//` or `#` comment bodies. Everything else becomes spaces. */
+function commentsOnly(content, marker) {
+  return content
+    .split("\n")
+    .map((line) => {
+      const at = line.indexOf(marker);
+      if (at === -1) {
+        return blank(line);
+      }
+      // A marker inside a string literal is not a comment. Counting unescaped
+      // quotes before it is crude but it avoids a full parser.
+      const before = line.slice(0, at);
+      const quotes = (before.match(/(?<!\\)["'`]/g) ?? []).length;
+      if (quotes % 2 !== 0) {
+        return blank(line);
+      }
+      return blank(before) + " ".repeat(marker.length) + line.slice(at + marker.length);
+    })
+    .join("\n");
+}
+
+/** Keeps only the inside of `/* ... *\/` blocks. */
+function blockCommentsOnly(content) {
+  const lines = content.split("\n");
+  const kept = [];
+  let inside = false;
+  // Build these markers by concatenation, so no bare literal trips this scan.
+  const open = "/" + "*";
+  const close = "*" + "/";
+  for (const line of lines) {
+    const opens = line.includes(open);
+    const closes = line.includes(close);
+    if (inside || opens) {
+      kept.push(line.replace(/\/\*|\*\/|^\s*\*/g, (m) => " ".repeat(m.length)));
+      inside = opens ? !closes : !closes;
+    } else {
+      kept.push(blank(line));
+    }
+  }
+  return kept.join("\n");
+}
+
+function mergeMasks(left, right) {
+  const a = left.split("\n");
+  const b = right.split("\n");
+  return a
+    .map((line, index) => {
+      const other = b[index] ?? "";
+      return [...line]
+        .map((character, column) =>
+          character !== " " ? character : (other[column] ?? " "),
+        )
+        .join("");
+    })
+    .join("\n");
+}
+
+/**
+ * Returns the lintable view of a file, or undefined when the file has none.
+ */
+export function lintableText(path, content) {
+  const extension = extensionOf(path);
+  if (PROSE_EXTENSIONS.has(extension)) {
+    return content;
+  }
+  const marker = LINE_COMMENT[extension];
+  if (!marker) {
+    return undefined;
+  }
+  const line = commentsOnly(content, marker);
+  return marker === "//" ? mergeMasks(line, blockCommentsOnly(content)) : line;
+}
+
+// Every way a message reaches `git commit`, except a file path. A quoted value
+// wins, and a bare word is the fallback.
+//
+// `-[a-z]*m` catches a combined short flag such as `-am`. A long flag starts
+// with two dashes, so the leading `(^|\s)-` cannot match it by mistake.
+const SHORT_FLAG =
+  /(?:^|\s)-[a-zA-Z]*m[ \t]*(?:(['"])([\s\S]*?)\1|([^\s'"][^\s]*))/g;
+const LONG_FLAG =
+  /--message(?:=|[ \t]+)(?:(['"])([\s\S]*?)\1|([^\s'"][^\s]*))/g;
+const HEREDOC = /-F\s*-[^\n]*\n<<['"]?(\w+)['"]?\n([\s\S]*?)\n\1/;
+
+// `git commit`, and also `git -C /tmp commit`. A global flag can sit between the
+// two words. A shell separator ends the search, so a later command is safe.
+const COMMIT_VERB = /git\s+(?:[^\s;|&]+\s+)*?commit\b/;
+
+/** Extracts every `git commit` message from a bash command, if there is one. */
+export function commitMessage(command) {
+  const at = command.search(COMMIT_VERB);
+  if (at === -1) {
+    return undefined;
+  }
+  const tail = command.slice(at);
+
+  const found = [];
+  for (const pattern of [SHORT_FLAG, LONG_FLAG]) {
+    pattern.lastIndex = 0;
+    let match = pattern.exec(tail);
+    while (match) {
+      found.push(match[2] ?? match[3]);
+      match = pattern.exec(tail);
+    }
+  }
+
+  const heredoc = tail.match(HEREDOC);
+  if (heredoc) {
+    found.push(heredoc[2]);
+  }
+
+  // `git commit -m a -m b` makes one message of two paragraphs.
+  const text = found.filter((part) => part !== undefined).join("\n\n");
+  return text.trim() === "" ? undefined : text;
+}

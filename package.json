@@ -1,0 +1,28 @@
+{
+  "name": "pi-ste",
+  "version": "0.1.0",
+  "description": "Simplified Technical English (ASD-STE100) enforcement for pi. Rule engine in Gleam.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "ste-lint": "./bin/ste-lint.mjs"
+  },
+  "files": [
+    "dist",
+    "src/host",
+    "bin",
+    "extension.mjs",
+    "README.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extension.mjs"
+    ]
+  },
+  "scripts": {
+    "build": "./scripts/build-dist.sh",
+    "prepublishOnly": "./scripts/build-dist.sh",
+    "test": "gleam test && node --test \"test/host/*.test.mjs\"",
+    "lint": "./bin/ste-lint.mjs README.md"
+  }
+}
