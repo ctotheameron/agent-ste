@@ -10,10 +10,17 @@ import ste/scan
 import ste/segment.{type Paragraph, type Sentence}
 import ste/source.{type Line}
 
-/// One regexp check: the pattern, and what to report when it matches.
-type Probe {
-  Probe(pattern: Regexp, rule_id: String, message: String, severity: Severity)
+/// One row of the check table: what to look for, what to report, and how hard.
+/// The pattern is source text in the table, and a `Regexp` after compiling.
+type Check(pattern) {
+  Check(pattern: pattern, rule_id: String, message: String, severity: Severity)
 }
+
+type Spec =
+  Check(String)
+
+type Probe =
+  Check(Regexp)
 
 /// Every verb and style regexp, compiled once.
 pub opaque type Patterns {
@@ -35,39 +42,54 @@ const contraction_rule = "style/contraction"
 
 const contraction_advice = "Do not use a contraction. Write the words in full."
 
-pub fn patterns() -> Result(Patterns, Nil) {
-  use progressive <- result.try(compile(be <> "\\s+\\w+ing\\b"))
-  use perfect <- result.try(compile(participle("(?:have|has|had)")))
-  use passive <- result.try(compile(participle(be)))
-  use contraction <- result.try(compile("\\w+['\u{2019}](?:t|re|ve|ll|d|m)\\b"))
-  use contraction_s <- result.try(compile(
-    "\\b" <> contraction_s_stems <> "['\u{2019}]s\\b",
-  ))
+/// Every regexp rule, in one table. A row pairs the pattern with its rule id,
+/// advice and severity. A new rule needs one entry.
+fn table() -> List(Spec) {
+  [
+    Check(
+      be <> "\\s+\\w+ing\\b",
+      "verb/progressive",
+      "Use a simple tense. Do not use the progressive.",
+      Hard,
+    ),
+    Check(
+      participle("(?:have|has|had)"),
+      "verb/perfect",
+      "Use the simple past. Do not use the perfect tense.",
+      Hard,
+    ),
+    Check(
+      participle(be),
+      "verb/passive",
+      "Use the active voice, unless the actor is unknown.",
+      Soft,
+    ),
+    Check(
+      "\\w+['\u{2019}](?:t|re|ve|ll|d|m)\\b",
+      contraction_rule,
+      contraction_advice,
+      Hard,
+    ),
+    Check(
+      "\\b" <> contraction_s_stems <> "['\u{2019}]s\\b",
+      contraction_rule,
+      contraction_advice,
+      Hard,
+    ),
+  ]
+}
 
-  Ok(
-    Patterns([
-      Probe(
-        progressive,
-        "verb/progressive",
-        "Use a simple tense. Do not use the progressive.",
-        Hard,
-      ),
-      Probe(
-        perfect,
-        "verb/perfect",
-        "Use the simple past. Do not use the perfect tense.",
-        Hard,
-      ),
-      Probe(
-        passive,
-        "verb/passive",
-        "Use the active voice, unless the actor is unknown.",
-        Soft,
-      ),
-      Probe(contraction, contraction_rule, contraction_advice, Hard),
-      Probe(contraction_s, contraction_rule, contraction_advice, Hard),
-    ]),
-  )
+pub fn patterns() -> Result(Patterns, Nil) {
+  table()
+  |> list.try_map(compile_check)
+  |> result.map(Patterns)
+}
+
+fn compile_check(spec: Spec) -> Result(Probe, Nil) {
+  compile(spec.pattern)
+  |> result.map(fn(pattern) {
+    Check(pattern, spec.rule_id, spec.message, spec.severity)
+  })
 }
 
 fn compile(pattern: String) -> Result(Regexp, Nil) {
