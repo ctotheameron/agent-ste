@@ -55,8 +55,8 @@ async function main(args) {
     paths.length === 0
       ? lintOne(compiled, "stdin.md", await readStdin())
       : paths.flatMap((path) =>
-          lintOne(compiled, path, readFileSync(path, "utf8")),
-        );
+        lintOne(compiled, path, readFileSync(path, "utf8")),
+      );
 
   if (json) {
     console.log(JSON.stringify(violations, undefined, 2));

@@ -51,16 +51,41 @@ and this project calls them.
 
 A rule needs two parts, and both live in Gleam:
 
-1. An entry in `rule.all()` in `src/ste/rule.gleam`. This text reaches the model
+1. A variant in `rule.Id` in `src/ste/rule.gleam`. The compiler then asks for
+   its name, its severity and its prompt line. That line reaches the model
    through the system prompt.
-2. A check that emits the same `rule_id`.
+2. A check that emits the same `rule.Id`.
 
-The test `every_declared_rule_is_implemented_test` fails when a rule has only
-part 1. This stops the prompt from asking for something the linter cannot see.
+The test `every_declared_rule_is_implemented_test` compares the roster against
+the ids the engine emits, in both directions. This stops the prompt from asking
+for a check the linter never makes.
 
 Most word and phrase rules need no new code. Add an `Entry` to the table in
-`src/ste/dictionary.gleam` with a `rule_id` and a severity. The n-gram lookup
-handles words and phrases in the same pass.
+`src/ste/dictionary.gleam` with a `rule.Id`. The rule gives the severity, and
+the n-gram lookup handles words and phrases in the same pass.
+
+## Measuring a new word
+
+Test a candidate against real prose first. A word with a second, technical sense
+reports a false positive on correct writing.
+
+These candidates failed that test and stay out:
+
+| Candidate | Why it stays out |
+| --- | --- |
+| `component`, `execute`, `abort`, `invoke` | Normal API vocabulary. |
+| `navigate`, `unlock`, `mitigate`, `essential` | Correct in place. |
+| `leading` | It marks the start of a string. |
+| `rather` | It pairs with "than". Our own docs use it. |
+| `underscores` | The `_` character. |
+| `work out` | It starts "works out of the box". |
+| `elevated` | It describes permissions. |
+| `unmatched` | It describes pairs and brackets. |
+| `realm` | An auth realm. |
+
+Cost differs by severity. A Soft word costs nothing in the prompt. The word
+table lists a word only when it has an approved replacement. A Hard word adds
+one line to every request.
 
 ## Severity
 
