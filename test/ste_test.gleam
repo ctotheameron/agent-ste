@@ -11,7 +11,7 @@ pub fn main() {
 }
 
 fn rule_ids(violations: List(Violation)) -> List(String) {
-  list.map(violations, fn(violation) { violation.rule_id })
+  list.map(violations, fn(violation) { rule.to_string(violation.rule_id) })
 }
 
 fn columns(violations: List(Violation)) -> List(Int) {
@@ -24,17 +24,16 @@ fn ids_for(text: String) -> List(String) {
 
 // --- the invariant that keeps the prompt honest ---
 
+/// The roster and the linter must name the same rules. This holds in both
+/// directions, so neither list can gain an entry alone.
 pub fn every_declared_rule_is_implemented_test() {
   let declared =
     rule.all()
-    |> list.map(fn(rule) { rule.id })
-    |> list.unique
+    |> list.map(rule.to_string)
     |> list.sort(string.compare)
 
-  list.filter(declared, fn(id) {
-    !list.contains(ste.implemented_rule_ids(), id)
-  })
-  |> should.equal([])
+  ste.implemented_rule_ids()
+  |> should.equal(declared)
 }
 
 // --- dictionary ---
@@ -242,7 +241,7 @@ pub fn warns_on_the_passive_voice_test() {
 pub fn a_passive_warning_is_soft_test() {
   let assert Ok(violation) =
     ste.lint("The bolt was removed.")
-    |> list.find(fn(v) { v.rule_id == "verb/passive" })
+    |> list.find(fn(v) { v.rule_id == rule.Passive })
   violation.severity
   |> should.equal(rule.Soft)
 }
@@ -280,7 +279,7 @@ pub fn a_sentence_over_twenty_words_is_soft_test() {
       "This sentence holds exactly twenty two words, so the linter must warn"
       <> " about it and not block the write of the file.",
     )
-    |> list.find(fn(v) { v.rule_id == "length/sentence" })
+    |> list.find(fn(v) { v.rule_id == rule.SentenceLength })
   violation.severity
   |> should.equal(rule.Soft)
 }
@@ -350,7 +349,7 @@ pub fn counts_a_wrapped_sentence_once_test() {
     <> "and it runs well past the limit of twenty five words, so the linter\n"
     <> "must report exactly one violation for it."
   ste.lint(wrapped)
-  |> list.filter(fn(v) { v.rule_id == "length/sentence" })
+  |> list.filter(fn(v) { v.rule_id == rule.SentenceLength })
   |> list.length
   |> should.equal(1)
 }
@@ -358,7 +357,7 @@ pub fn counts_a_wrapped_sentence_once_test() {
 pub fn maps_a_wrapped_sentence_to_its_own_line_test() {
   let assert Ok(violation) =
     ste.lint("Start the job.\nThen please utilize\nthe cache.")
-    |> list.find(fn(v) { v.rule_id == "dictionary/not-approved-word" })
+    |> list.find(fn(v) { v.rule_id == rule.NotApprovedWord })
   #(violation.line, violation.column)
   |> should.equal(#(2, 13))
 }
@@ -387,6 +386,8 @@ pub fn returns_an_empty_array_for_clean_text_test() {
 
 pub fn the_prompt_names_every_rule_test() {
   let prompt = ste.prompt_text()
-  list.filter(rule.all(), fn(rule) { !string.contains(prompt, rule.id) })
+  rule.all()
+  |> list.map(rule.to_string)
+  |> list.filter(fn(id) { !string.contains(prompt, id) })
   |> should.equal([])
 }

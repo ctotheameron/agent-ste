@@ -5,15 +5,15 @@ import gleam/option.{type Option, None, Some}
 import gleam/regexp.{type Regexp}
 import gleam/result
 import gleam/string
-import ste/rule.{type Severity, type Violation, Hard, Soft, Violation}
+import ste/rule.{type Id, type Severity, type Violation, Hard, Soft, Violation}
 import ste/scan
 import ste/segment.{type Paragraph, type Sentence}
 import ste/source.{type Line}
 
-/// One row of the check table: what to look for, what to report, and how hard.
-/// The pattern is source text in the table, and a `Regexp` after compiling.
+/// One row of the check table: what to look for, and what to report. A rule
+/// takes more than one pattern when one regexp cannot state it.
 type Check(pattern) {
-  Check(pattern: pattern, rule_id: String, message: String, severity: Severity)
+  Check(patterns: List(pattern), id: Id, advice: String)
 }
 
 type Spec =
@@ -38,45 +38,39 @@ const irregular = "(?:done|made|sent|read|built|kept|held|set|put|run|written|sh
 /// fixed set of stems forms a real `'s` contraction.
 const contraction_s_stems = "(?:it|he|she|that|what|who|there|here|let|one|where|how|everyone|everybody|something|nothing|somebody|nobody)"
 
-const contraction_rule = "style/contraction"
-
-const contraction_advice = "Do not use a contraction. Write the words in full."
-
-/// Every regexp rule, in one table. A row pairs the pattern with its rule id,
-/// advice and severity. A new rule needs one entry.
+/// Every regexp rule, one row each. A row pairs its patterns with the rule and
+/// the advice to report. The rule gives the severity.
 fn table() -> List(Spec) {
   [
     Check(
-      be <> "\\s+\\w+ing\\b",
-      "verb/progressive",
+      [be <> "\\s+\\w+ing\\b"],
+      rule.Progressive,
       "Use a simple tense. Do not use the progressive.",
-      Hard,
     ),
     Check(
-      participle("(?:have|has|had)"),
-      "verb/perfect",
+      [participle("(?:have|has|had)")],
+      rule.Perfect,
       "Use the simple past. Do not use the perfect tense.",
-      Hard,
     ),
     Check(
-      participle(be),
-      "verb/passive",
+      [participle(be)],
+      rule.Passive,
       "Use the active voice, unless the actor is unknown.",
-      Soft,
     ),
     Check(
-      "\\w+['\u{2019}](?:t|re|ve|ll|d|m)\\b",
-      contraction_rule,
-      contraction_advice,
-      Hard,
-    ),
-    Check(
-      "\\b" <> contraction_s_stems <> "['\u{2019}]s\\b",
-      contraction_rule,
-      contraction_advice,
-      Hard,
+      [
+        "\\w+['\u{2019}](?:t|re|ve|ll|d|m)\\b",
+        "\\b" <> contraction_s_stems <> "['\u{2019}]s\\b",
+      ],
+      rule.Contraction,
+      "Do not use a contraction. Write the words in full.",
     ),
   ]
+}
+
+/// An auxiliary verb, then a past participle.
+fn participle(auxiliary: String) -> String {
+  auxiliary <> "\\s+(?:\\w+ed|" <> irregular <> ")\\b"
 }
 
 pub fn patterns() -> Result(Patterns, Nil) {
@@ -86,20 +80,13 @@ pub fn patterns() -> Result(Patterns, Nil) {
 }
 
 fn compile_check(spec: Spec) -> Result(Probe, Nil) {
-  compile(spec.pattern)
-  |> result.map(fn(pattern) {
-    Check(pattern, spec.rule_id, spec.message, spec.severity)
-  })
+  list.try_map(spec.patterns, compile)
+  |> result.map(fn(patterns) { Check(patterns, spec.id, spec.advice) })
 }
 
 fn compile(pattern: String) -> Result(Regexp, Nil) {
   regexp.from_string(pattern)
   |> result.replace_error(Nil)
-}
-
-/// An auxiliary verb, then a past participle.
-fn participle(auxiliary: String) -> String {
-  auxiliary <> "\\s+(?:\\w+ed|" <> irregular <> ")\\b"
 }
 
 pub fn verb_forms(patterns: Patterns, line: Line) -> List(Violation) {
@@ -108,14 +95,20 @@ pub fn verb_forms(patterns: Patterns, line: Line) -> List(Violation) {
 }
 
 fn matches(probe: Probe, line: Line) -> List(Violation) {
-  regexp.scan(probe.pattern, string.lowercase(line.text))
+  probe.patterns
+  |> list.flat_map(fn(pattern) { scan_one(pattern, probe, line) })
+}
+
+fn scan_one(pattern: Regexp, probe: Probe, line: Line) -> List(Violation) {
+  let severity = rule.severity(probe.id)
+  regexp.scan(pattern, string.lowercase(line.text))
   |> list.map(fn(match) {
     Violation(
-      rule_id: probe.rule_id,
-      message: probe.message <> " Found: \"" <> match.content <> "\".",
+      rule_id: probe.id,
+      message: probe.advice <> " Found: \"" <> match.content <> "\".",
       line: line.number,
       column: scan.first_column(line.text, match.content),
-      severity: probe.severity,
+      severity: severity,
     )
   })
 }
@@ -124,11 +117,11 @@ pub fn semicolon(line: Line) -> List(Violation) {
   scan.columns(line.text, ";")
   |> list.map(fn(column) {
     Violation(
-      rule_id: "style/semicolon",
+      rule_id: rule.Semicolon,
       message: "Do not use a semicolon. Write two sentences.",
       line: line.number,
       column: column,
-      severity: Hard,
+      severity: rule.severity(rule.Semicolon),
     )
   })
 }
@@ -152,6 +145,7 @@ pub fn sentence_length(sentence: Sentence) -> List(Violation) {
   }
 }
 
+/// This names each severity, because one rule reports both.
 fn overflow(words: Int) -> Option(Overflow) {
   case words > descriptive_limit, words > instruction_limit {
     True, _ -> Some(Overflow(descriptive_limit, "Write no more than ", Hard))
@@ -167,7 +161,7 @@ fn overflow(words: Int) -> Option(Overflow) {
 
 fn too_long(sentence: Sentence, over: Overflow) -> Violation {
   Violation(
-    rule_id: "length/sentence",
+    rule_id: rule.SentenceLength,
     message: "This sentence has "
       <> int.to_string(sentence.words)
       <> " words. "
@@ -187,7 +181,7 @@ pub fn paragraph_length(paragraph: Paragraph) -> List(Violation) {
   use <- bool.guard(when: count <= paragraph_limit, return: [])
   [
     Violation(
-      rule_id: "length/paragraph",
+      rule_id: rule.ParagraphLength,
       message: "This paragraph has "
         <> int.to_string(count)
         <> " sentences. Write no more than "
@@ -195,7 +189,7 @@ pub fn paragraph_length(paragraph: Paragraph) -> List(Violation) {
         <> ".",
       line: paragraph.line,
       column: 1,
-      severity: Hard,
+      severity: rule.severity(rule.ParagraphLength),
     ),
   ]
 }

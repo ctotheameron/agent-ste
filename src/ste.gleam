@@ -131,7 +131,7 @@ fn word_line(entry: dictionary.Entry) -> Result(String, Nil) {
 pub fn implemented_rule_ids() -> List(String) {
   probe_text()
   |> lint
-  |> list.map(fn(violation) { violation.rule_id })
+  |> list.map(fn(violation) { rule.to_string(violation.rule_id) })
   |> list.unique
   |> list.sort(string.compare)
 }

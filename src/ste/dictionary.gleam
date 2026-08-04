@@ -6,7 +6,7 @@ import gleam/pair
 import gleam/result
 import gleam/set.{type Set}
 import gleam/string
-import ste/rule.{type Severity, type Violation, Hard, Soft, Violation}
+import ste/rule.{type Id, type Severity, type Violation, Soft, Violation}
 import ste/source.{type Line}
 import ste/token.{type Token}
 
@@ -14,16 +14,11 @@ pub type Entry {
   /// `forms` lists every spelling to flag. An explicit list beats a suffix
   /// regexp: `\bprior\w*` also matches "priority", and an English verb stem
   /// drops its "e" before "-ing".
-  Entry(
-    forms: List(String),
-    approved: String,
-    rule_id: String,
-    severity: Severity,
-  )
+  Entry(forms: List(String), approved: String, id: Id)
 }
 
 pub type Replacement {
-  Replacement(approved: String, rule_id: String, severity: Severity)
+  Replacement(approved: String, id: Id, severity: Severity)
 }
 
 /// One dictionary hit. `size` counts the tokens it consumed. `offset` is 0 for
@@ -70,8 +65,8 @@ fn entry_forms(entry: Entry) -> List(#(String, Replacement)) {
   let replacement =
     Replacement(
       approved: entry.approved,
-      rule_id: entry.rule_id,
-      severity: entry.severity,
+      id: entry.id,
+      severity: rule.severity(entry.id),
     )
   entry.forms
   |> list.map(fn(form) { #(form, replacement) })
@@ -118,7 +113,7 @@ fn check_loop(
 
 fn to_violation(line: Line, head: Token, match: Match) -> Violation {
   Violation(
-    rule_id: match.replacement.rule_id,
+    rule_id: match.replacement.id,
     message: message_for(match.replacement, match.found),
     line: line.number,
     column: head.column + match.offset,
@@ -200,14 +195,6 @@ fn part_lookup(table: Table, part: #(String, Int)) -> Result(Match, Nil) {
   Ok(Match(text, Replacement(..replacement, severity: Soft), 1, offset))
 }
 
-const not_approved = "dictionary/not-approved-word"
-
-const phrasal = "style/phrasal-verb"
-
-const hedge = "style/hedge"
-
-const marketing = "style/marketing"
-
 /// ASD limits redistribution of the full ASD-STE100 dictionary, which holds
 /// roughly 900 approved words and roughly 1,200 words to avoid. This table
 /// holds widely-cited pairs only. The standard's terminology allowance lets a
@@ -263,7 +250,7 @@ fn word_entries() -> List(Entry) {
     #(["amongst"], "among"),
     #(["numerous", "myriad", "plethora"], "many"),
   ]
-  |> list.map(fn(pair) { Entry(pair.0, pair.1, not_approved, Hard) })
+  |> list.map(fn(pair) { Entry(pair.0, pair.1, rule.NotApprovedWord) })
 }
 
 fn phrase_entries() -> List(Entry) {
@@ -277,7 +264,7 @@ fn phrase_entries() -> List(Entry) {
     #(["is able to", "are able to"], "can"),
     #(["make use of", "makes use of"], "use"),
   ]
-  |> list.map(fn(pair) { Entry(pair.0, pair.1, not_approved, Hard) })
+  |> list.map(fn(pair) { Entry(pair.0, pair.1, rule.NotApprovedWord) })
 }
 
 fn phrasal_verb_entries() -> List(Entry) {
@@ -293,7 +280,7 @@ fn phrasal_verb_entries() -> List(Entry) {
     #(["circle back"], "return to"),
     #(["drill down"], "examine"),
   ]
-  |> list.map(fn(pair) { Entry(pair.0, pair.1, phrasal, Hard) })
+  |> list.map(fn(pair) { Entry(pair.0, pair.1, rule.PhrasalVerb) })
 }
 
 fn hedge_entries() -> List(Entry) {
@@ -301,7 +288,7 @@ fn hedge_entries() -> List(Entry) {
     "it is important to note", "it should be noted", "it is worth noting",
     "please note that", "as mentioned", "as noted above",
   ]
-  |> list.map(fn(phrase) { Entry([phrase], "", hedge, Soft) })
+  |> list.map(fn(phrase) { Entry([phrase], "", rule.Hedge) })
 }
 
 fn marketing_entries() -> List(Entry) {
@@ -312,7 +299,7 @@ fn marketing_entries() -> List(Entry) {
     "state-of-the-art", "game-changing", "battle-tested", "enterprise-grade",
     "supercharge", "unleash", "empower", "empowers",
   ]
-  |> list.map(fn(word) { Entry([word], "", marketing, Soft) })
+  |> list.map(fn(word) { Entry([word], "", rule.Marketing) })
 }
 
 /// `initiate` -> `initiate`, `initiates`, `initiated`, `initiating`

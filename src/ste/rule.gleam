@@ -1,5 +1,20 @@
 import gleam/json.{type Json}
-import gleam/list
+
+/// Every rule the engine can report. A new variant here makes the compiler ask
+/// for its name, its severity and its prompt line.
+pub type Id {
+  NotApprovedWord
+  SentenceLength
+  ParagraphLength
+  Progressive
+  Perfect
+  Passive
+  Contraction
+  Semicolon
+  PhrasalVerb
+  Hedge
+  Marketing
+}
 
 pub type Severity {
   /// The check is deterministic. The host may block the write.
@@ -10,7 +25,7 @@ pub type Severity {
 
 pub type Violation {
   Violation(
-    rule_id: String,
+    rule_id: Id,
     message: String,
     line: Int,
     column: Int,
@@ -18,9 +33,88 @@ pub type Violation {
   )
 }
 
+/// The roster. A test proves that every rule here can fire.
+pub fn all() -> List(Id) {
+  [
+    NotApprovedWord,
+    SentenceLength,
+    ParagraphLength,
+    Progressive,
+    Perfect,
+    Passive,
+    Contraction,
+    Semicolon,
+    PhrasalVerb,
+    Hedge,
+    Marketing,
+  ]
+}
+
+/// The name the host, the CLI and the prompt all report.
+pub fn to_string(id: Id) -> String {
+  case id {
+    NotApprovedWord -> "dictionary/not-approved-word"
+    SentenceLength -> "length/sentence"
+    ParagraphLength -> "length/paragraph"
+    Progressive -> "verb/progressive"
+    Perfect -> "verb/perfect"
+    Passive -> "verb/passive"
+    Contraction -> "style/contraction"
+    Semicolon -> "style/semicolon"
+    PhrasalVerb -> "style/phrasal-verb"
+    Hedge -> "style/hedge"
+    Marketing -> "style/marketing"
+  }
+}
+
+/// The severity a rule reports. Two sites narrow this to Soft: a sentence
+/// between the two length limits, and a not-approved word inside a hyphen.
+pub fn severity(id: Id) -> Severity {
+  case id {
+    NotApprovedWord -> Hard
+    SentenceLength -> Hard
+    ParagraphLength -> Hard
+    Progressive -> Hard
+    Perfect -> Hard
+    Passive -> Soft
+    Contraction -> Hard
+    Semicolon -> Hard
+    PhrasalVerb -> Hard
+    Hedge -> Soft
+    Marketing -> Soft
+  }
+}
+
+/// The rule as the system prompt states it.
+fn prompt(id: Id) -> String {
+  case id {
+    NotApprovedWord -> "Use one word for one meaning. Prefer the approved word."
+    SentenceLength ->
+      "Write no more than 20 words in an instruction sentence, and no more than 25 in a descriptive sentence."
+    ParagraphLength ->
+      "Write no more than 6 sentences in an instruction paragraph, and no more than 3 in a descriptive paragraph."
+    Progressive -> "Use the simple tenses only. Do not write \"is removing\"."
+    Perfect ->
+      "Do not use the perfect tenses. Write \"we received\", not \"we have received\"."
+    Passive ->
+      "Use the active voice for an instruction. Passive voice is allowed in descriptive text only when the actor is unknown."
+    Contraction -> "Do not use a contraction. Write \"do not\", not \"don't\"."
+    Semicolon -> "Do not use a semicolon. Write two sentences."
+    PhrasalVerb ->
+      "Do not use a phrasal verb. Write \"start\", not \"spin up\"."
+    Hedge -> "Do not hedge. Delete \"it is important to note\"."
+    Marketing ->
+      "Do not use a marketing adjective such as \"seamless\" or \"robust\"."
+  }
+}
+
+pub fn to_prompt_line(id: Id) -> String {
+  "- " <> prompt(id) <> " (" <> to_string(id) <> ")"
+}
+
 pub fn violation_to_json(violation: Violation) -> Json {
   json.object([
-    #("ruleId", json.string(violation.rule_id)),
+    #("ruleId", json.string(to_string(violation.rule_id))),
     #("message", json.string(violation.message)),
     #("line", json.int(violation.line)),
     #("column", json.int(violation.column)),
@@ -28,85 +122,9 @@ pub fn violation_to_json(violation: Violation) -> Json {
   ])
 }
 
-fn severity_to_string(severity: Severity) -> String {
-  case severity {
+fn severity_to_string(value: Severity) -> String {
+  case value {
     Hard -> "hard"
     Soft -> "soft"
   }
-}
-
-pub type Rule {
-  Rule(id: String, prompt_text: String, severity: Severity)
-}
-
-/// Every rule the engine knows. The system prompt uses this list, so a new rule
-/// reaches the model and the linter together.
-pub fn all() -> List(Rule) {
-  [
-    Rule(
-      "dictionary/not-approved-word",
-      "Use one word for one meaning. Prefer the approved word.",
-      Hard,
-    ),
-    Rule(
-      "length/sentence",
-      "Write no more than 20 words in an instruction sentence, and no more than 25 in a descriptive sentence.",
-      Hard,
-    ),
-    Rule(
-      "length/paragraph",
-      "Write no more than 6 sentences in an instruction paragraph, and no more than 3 in a descriptive paragraph.",
-      Hard,
-    ),
-    Rule(
-      "verb/progressive",
-      "Use the simple tenses only. Do not write \"is removing\".",
-      Hard,
-    ),
-    Rule(
-      "verb/perfect",
-      "Do not use the perfect tenses. Write \"we received\", not \"we have received\".",
-      Hard,
-    ),
-    Rule(
-      "verb/passive",
-      "Use the active voice for an instruction. Passive voice is allowed in descriptive text only when the actor is unknown.",
-      Soft,
-    ),
-    Rule(
-      "style/contraction",
-      "Do not use a contraction. Write \"do not\", not \"don't\".",
-      Hard,
-    ),
-    Rule(
-      "style/semicolon",
-      "Do not use a semicolon. Write two sentences.",
-      Hard,
-    ),
-    Rule(
-      "style/phrasal-verb",
-      "Do not use a phrasal verb. Write \"start\", not \"spin up\".",
-      Hard,
-    ),
-    Rule(
-      "style/hedge",
-      "Do not hedge. Delete \"it is important to note\".",
-      Soft,
-    ),
-    Rule(
-      "style/marketing",
-      "Do not use a marketing adjective such as \"seamless\" or \"robust\".",
-      Soft,
-    ),
-  ]
-}
-
-pub fn to_prompt_line(rule: Rule) -> String {
-  "- " <> rule.prompt_text <> " (" <> rule.id <> ")"
-}
-
-pub fn hard_rule_ids() -> List(String) {
-  all()
-  |> list.filter(fn(rule) { rule.severity == Hard })
-  |> list.map(fn(rule) { rule.id })
 }
