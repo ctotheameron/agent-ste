@@ -1,7 +1,10 @@
 import gleam/list
-import gleam/option.{type Option, Some}
+import gleam/option.{type Option, None, Some}
+import gleam/pair
 import gleam/regexp.{type Regexp}
+import gleam/result
 import gleam/string
+import ste/source.{type Line}
 
 pub type Sentence {
   Sentence(text: String, line: Int, column: Int, words: Int)
@@ -30,47 +33,47 @@ type Block {
   Block(text: String, lines: List(Placed), line: Int)
 }
 
+/// The blocks closed so far, and the run still open.
+type Grouping {
+  Grouping(done: List(Block), open: List(Line))
+}
+
 pub opaque type Splitter {
-  Splitter(sentence: Regexp, marker: Regexp, list_marker: Regexp)
+  Splitter(sentence: Regexp, list_marker: Regexp)
 }
 
 /// Group 1 takes leading whitespace, group 2 takes the sentence. A running sum
 /// of both gives an exact offset, which gleam_regexp does not report.
 const sentence_pattern = "(\\s*)([^.!?]*[.!?]+|[^.!?]+)"
 
-const marker_pattern = "^\\s*(#{1,6}\\s+|[-*+]\\s+|\\d+[.)]\\s+|>\\s+)?"
-
 const list_marker_pattern = "^(?:[-*+]\\s|\\d+[.)]\\s)"
 
 pub fn splitter() -> Result(Splitter, Nil) {
-  case
-    regexp.from_string(sentence_pattern),
-    regexp.from_string(marker_pattern),
-    regexp.from_string(list_marker_pattern)
-  {
-    Ok(sentence), Ok(marker), Ok(list_marker) ->
-      Ok(Splitter(sentence, marker, list_marker))
-    _, _, _ -> Error(Nil)
-  }
+  use sentence <- result.try(compile(sentence_pattern))
+  use list_marker <- result.try(compile(list_marker_pattern))
+  Ok(Splitter(sentence: sentence, list_marker: list_marker))
+}
+
+fn compile(pattern: String) -> Result(Regexp, Nil) {
+  regexp.from_string(pattern)
+  |> result.replace_error(Nil)
 }
 
 pub fn classify(splitter: Splitter, line: String) -> LineKind {
   let trimmed = string.trim(line)
-  case trimmed {
-    "" -> Blank
-    _ ->
-      case string.starts_with(trimmed, "|") {
-        True -> TableRow
-        False ->
-          case string.starts_with(trimmed, "#") {
-            True -> Heading
-            False ->
-              case regexp.check(splitter.list_marker, trimmed) {
-                True -> ListItem
-                False -> Prose
-              }
-          }
-      }
+  case string.first(trimmed) {
+    Error(_) -> Blank
+    Ok("|") -> TableRow
+    Ok("#") -> Heading
+    Ok(_) -> body_kind(splitter, trimmed)
+  }
+}
+
+/// A line that starts no marker is a list item or plain prose.
+fn body_kind(splitter: Splitter, trimmed: String) -> LineKind {
+  case regexp.check(splitter.list_marker, trimmed) {
+    True -> ListItem
+    False -> Prose
   }
 }
 
@@ -89,7 +92,7 @@ pub fn paragraphs(splitter: Splitter, text: String) -> List(Paragraph) {
 
 pub fn sentences(splitter: Splitter, text: String) -> List(Sentence) {
   blocks(splitter, text)
-  |> list.flat_map(fn(block) { sentences_of_block(splitter, block) })
+  |> list.flat_map(sentences_of_block(splitter, _))
 }
 
 /// Groups lines into blocks and joins each block with a single space.
@@ -97,96 +100,100 @@ pub fn sentences(splitter: Splitter, text: String) -> List(Sentence) {
 /// A hard-wrapped sentence then reads as one string, so a length count and a
 /// sentence count stay correct.
 fn blocks(splitter: Splitter, text: String) -> List(Block) {
-  string.split(text, on: "\n")
-  |> list.index_map(fn(line, index) { #(line, index + 1) })
-  |> list.fold(#([], []), fn(state, entry) {
-    let #(done, current) = state
-    let #(line, number) = entry
-    case classify(splitter, line) {
-      Blank | Heading | TableRow -> #(close(done, current), [])
-      ListItem -> #(close(close(done, current), [#(line, number)]), [])
-      Prose -> #(done, [#(line, number), ..current])
-    }
+  source.lines(text)
+  |> list.fold(Grouping(done: [], open: []), fn(state, line) {
+    group(splitter, state, line)
   })
-  |> fn(state) { close(state.0, state.1) }
+  |> flush
   |> list.reverse
 }
 
-fn close(done: List(Block), collected: List(#(String, Int))) -> List(Block) {
-  case list.reverse(collected) {
-    [] -> done
-    ordered -> [build_block(ordered), ..done]
+fn group(splitter: Splitter, state: Grouping, line: Line) -> Grouping {
+  case classify(splitter, line.text) {
+    Prose -> Grouping(..state, open: [line, ..state.open])
+    Blank | Heading | TableRow -> Grouping(done: flush(state), open: [])
+    ListItem -> Grouping(done: [build_block([line]), ..flush(state)], open: [])
   }
 }
 
-fn build_block(ordered: List(#(String, Int))) -> Block {
-  let #(parts, placed, _) =
-    list.fold(ordered, #([], [], 0), fn(state, entry) {
-      let #(parts, placed, offset) = state
-      let #(line, number) = entry
-      let indent = leading_width(line)
-      let body = string.trim(string.drop_start(line, indent))
-      // A joined block separates lines with one space.
-      let separator = case parts {
-        [] -> 0
-        _ -> 1
-      }
-      let start = offset + separator
-      #(
-        [body, ..parts],
-        [Placed(number: number, indent: indent, offset: start), ..placed],
-        start + string.length(body),
-      )
-    })
+/// Closes the open run. The newest block comes first.
+fn flush(state: Grouping) -> List(Block) {
+  case list.reverse(state.open) {
+    [] -> state.done
+    ordered -> [build_block(ordered), ..state.done]
+  }
+}
 
-  let lines = list.reverse(placed)
+fn build_block(lines: List(Line)) -> Block {
   Block(
-    text: list.reverse(parts) |> string.join(" "),
-    lines: lines,
-    line: case lines {
-      [first, ..] -> first.number
-      [] -> 1
-    },
+    text: lines |> list.map(body) |> string.join(with: " "),
+    lines: place_lines(lines),
+    line: first_number(lines),
   )
 }
 
-fn leading_width(line: String) -> Int {
-  string.length(line) - string.length(string.trim_start(line))
+/// A joined block separates lines with one space, so each body starts one
+/// character after the body before it ends.
+fn place_lines(lines: List(Line)) -> List(Placed) {
+  lines
+  |> list.map_fold(from: 0, with: fn(start, line) {
+    let placed =
+      Placed(number: line.number, indent: indent(line), offset: start)
+    #(start + string.length(body(line)) + 1, placed)
+  })
+  |> pair.second
+}
+
+fn body(line: Line) -> String {
+  string.trim(line.text)
+}
+
+fn indent(line: Line) -> Int {
+  string.length(line.text) - string.length(string.trim_start(line.text))
+}
+
+fn first_number(lines: List(Line)) -> Int {
+  lines
+  |> list.first
+  |> result.map(fn(line) { line.number })
+  |> result.unwrap(or: 1)
 }
 
 fn sentences_of_block(splitter: Splitter, block: Block) -> List(Sentence) {
   regexp.scan(splitter.sentence, block.text)
-  |> list.fold(#([], 0), fn(state, match) {
-    let #(done, position) = state
-    case match.submatches {
-      [leading, Some(body)] -> {
-        let start = position + width(leading)
-        let trimmed = string.trim(body)
-        let next = case trimmed {
-          "" -> done
-          _ -> [place(block, start, trimmed), ..done]
-        }
-        #(next, start + string.length(body))
-      }
-      _ -> #(done, position)
-    }
+  |> list.map_fold(from: 0, with: fn(position, match) {
+    take_sentence(block, position, match)
   })
-  |> fn(state) { list.reverse(state.0) }
+  |> pair.second
+  |> option.values
+}
+
+/// Places one match and returns the offset where the next one starts.
+fn take_sentence(
+  block: Block,
+  position: Int,
+  match: regexp.Match,
+) -> #(Int, Option(Sentence)) {
+  case match.submatches {
+    [leading, Some(text)] -> {
+      let start = position + width(leading)
+      let next = start + string.length(text)
+      case string.trim(text) {
+        "" -> #(next, None)
+        trimmed -> #(next, Some(place(block, start, trimmed)))
+      }
+    }
+    _ -> #(position, None)
+  }
 }
 
 /// Maps an offset in the joined block text back to a real line and column.
 fn place(block: Block, offset: Int, text: String) -> Sentence {
   let placed =
-    list.fold(
-      block.lines,
-      Placed(number: block.line, indent: 0, offset: 0),
-      fn(best, candidate) {
-        case candidate.offset <= offset {
-          True -> candidate
-          False -> best
-        }
-      },
-    )
+    block.lines
+    |> list.filter(fn(one) { one.offset <= offset })
+    |> list.last
+    |> result.unwrap(or: Placed(number: block.line, indent: 0, offset: 0))
 
   Sentence(
     text: text,
@@ -197,23 +204,22 @@ fn place(block: Block, offset: Int, text: String) -> Sentence {
 }
 
 fn width(value: Option(String)) -> Int {
-  case value {
-    Some(text) -> string.length(text)
-    _ -> 0
-  }
+  value
+  |> option.map(string.length)
+  |> option.unwrap(or: 0)
 }
+
+/// The caller lowercases the text, so this list holds lowercase only.
+const word_characters = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 /// Counts words the way a reader does. A hyphenated compound counts once, and a
 /// bare number counts as a word.
 pub fn word_count(text: String) -> Int {
   string.split(text, on: " ")
-  |> list.filter(has_letter_or_digit)
-  |> list.length
+  |> list.count(has_letter_or_digit)
 }
 
-fn has_letter_or_digit(token: String) -> Bool {
-  string.to_graphemes(string.lowercase(token))
-  |> list.any(fn(grapheme) {
-    string.contains("abcdefghijklmnopqrstuvwxyz0123456789", grapheme)
-  })
+fn has_letter_or_digit(word: String) -> Bool {
+  string.to_graphemes(string.lowercase(word))
+  |> list.any(fn(grapheme) { string.contains(word_characters, grapheme) })
 }

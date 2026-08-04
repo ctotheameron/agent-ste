@@ -1,8 +1,13 @@
+import gleam/bool
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/list
+import gleam/pair
+import gleam/result
 import gleam/set.{type Set}
 import gleam/string
 import ste/rule.{type Severity, type Violation, Hard, Soft, Violation}
+import ste/source.{type Line}
 import ste/token.{type Token}
 
 pub type Entry {
@@ -38,89 +43,87 @@ pub type Table {
   )
 }
 
+/// The table and the line together, so a step passes one value, not two.
+type Search {
+  Search(table: Table, line: Line)
+}
+
 /// Build this ONCE and reuse it. Gleam has no module-level mutable state and a
 /// `const` cannot hold a Dict, so the host owns the value.
 pub fn table() -> Table {
-  let forms =
-    entries()
-    |> list.flat_map(fn(entry) {
-      list.map(entry.forms, fn(form) {
-        #(
-          form,
-          Replacement(
-            approved: entry.approved,
-            rule_id: entry.rule_id,
-            severity: entry.severity,
-          ),
-        )
-      })
-    })
-
-  let phrases = list.filter(forms, fn(pair) { phrase_length(pair.0) > 1 })
+  let forms = entries() |> list.flat_map(entry_forms)
+  let phrases = forms |> list.filter(fn(form) { phrase_length(form.0) > 1 })
 
   Table(
     replacements: dict.from_list(forms),
     phrase_starts: phrases
-      |> list.filter_map(fn(pair) { first_word(pair.0) })
+      |> list.filter_map(fn(form) { first_word(form.0) })
       |> set.from_list,
-    max_words: list.fold(phrases, 1, fn(most, pair) {
-      int_max(most, phrase_length(pair.0))
-    }),
+    max_words: phrases
+      |> list.map(fn(form) { phrase_length(form.0) })
+      |> list.fold(1, int.max),
   )
 }
 
+/// Every spelling of one entry, paired with the replacement to report.
+fn entry_forms(entry: Entry) -> List(#(String, Replacement)) {
+  let replacement =
+    Replacement(
+      approved: entry.approved,
+      rule_id: entry.rule_id,
+      severity: entry.severity,
+    )
+  entry.forms
+  |> list.map(fn(form) { #(form, replacement) })
+}
+
 fn first_word(phrase: String) -> Result(String, Nil) {
-  case string.split(phrase, on: " ") {
-    [head, ..] -> Ok(head)
-    [] -> Error(Nil)
-  }
+  string.split(phrase, on: " ")
+  |> list.first
 }
 
 fn phrase_length(phrase: String) -> Int {
-  string.split(phrase, on: " ") |> list.length
-}
-
-fn int_max(left: Int, right: Int) -> Int {
-  case left > right {
-    True -> left
-    False -> right
-  }
+  string.split(phrase, on: " ")
+  |> list.length
 }
 
 pub fn check(
   table: Table,
   tokens: List(Token),
-  line_number: Int,
+  on line: Line,
 ) -> List(Violation) {
-  walk(table, tokens, line_number, [])
+  check_loop(Search(table: table, line: line), tokens, [])
 }
 
 /// Greedy longest match. `prior to` must consume both tokens, or the entry for
 /// `prior` reports the same span again.
-fn walk(
-  table: Table,
+fn check_loop(
+  search: Search,
   tokens: List(Token),
-  line_number: Int,
   found: List(Violation),
 ) -> List(Violation) {
   case tokens {
     [] -> list.reverse(found)
-    [first, ..rest] ->
-      case longest_match(table, tokens, table.max_words) {
-        Error(_) -> walk(table, rest, line_number, found)
+    [head, ..rest] ->
+      case longest_match(search.table, tokens) {
+        Error(_) -> check_loop(search, rest, found)
         Ok(match) ->
-          walk(table, list.drop(tokens, match.size), line_number, [
-            Violation(
-              rule_id: match.replacement.rule_id,
-              message: message_for(match.replacement, match.found),
-              line: line_number,
-              column: first.column + match.offset,
-              severity: match.replacement.severity,
-            ),
+          check_loop(search, list.drop(tokens, match.size), [
+            to_violation(search.line, head, match),
             ..found
           ])
       }
   }
+}
+
+fn to_violation(line: Line, head: Token, match: Match) -> Violation {
+  Violation(
+    rule_id: match.replacement.rule_id,
+    message: message_for(match.replacement, match.found),
+    line: line.number,
+    column: head.column + match.offset,
+    severity: match.replacement.severity,
+  )
 }
 
 fn message_for(replacement: Replacement, found: String) -> String {
@@ -130,27 +133,40 @@ fn message_for(replacement: Replacement, found: String) -> String {
   }
 }
 
-fn longest_match(
+fn longest_match(table: Table, tokens: List(Token)) -> Result(Match, Nil) {
+  use head <- result.try(list.first(tokens))
+  case set.contains(table.phrase_starts, head.lower) {
+    True -> phrase_match(table, tokens, table.max_words)
+    False -> word_match(table, head)
+  }
+}
+
+/// The hot path: one lookup, and a hyphen part only when that lookup misses.
+fn word_match(table: Table, head: Token) -> Result(Match, Nil) {
+  dict.get(table.replacements, head.lower)
+  |> result.map(fn(replacement) { Match(head.lower, replacement, 1, 0) })
+  |> result.lazy_or(fn() { part_match(table, head) })
+}
+
+/// Tries the longest n-gram first, so `prior to` beats `prior`.
+fn phrase_match(
   table: Table,
   tokens: List(Token),
   size: Int,
 ) -> Result(Match, Nil) {
-  case tokens {
-    [] -> Error(Nil)
-    [first, ..] ->
-      case set.contains(table.phrase_starts, first.lower) {
-        True -> try_sizes(table, tokens, size)
-        False -> match_single(table, first)
-      }
-  }
+  use <- bool.guard(when: size <= 0, return: Error(Nil))
+  sized_match(table, tokens, size)
+  |> result.lazy_or(fn() { phrase_match(table, tokens, size - 1) })
 }
 
-/// The hot path: one lookup, no list or string allocation.
-fn match_single(table: Table, first: Token) -> Result(Match, Nil) {
-  case dict.get(table.replacements, first.lower) {
-    Ok(replacement) -> Ok(Match(first.lower, replacement, 1, 0))
-    Error(_) -> match_part(table, first)
-  }
+fn sized_match(
+  table: Table,
+  tokens: List(Token),
+  size: Int,
+) -> Result(Match, Nil) {
+  use ngram <- result.try(token.ngram_at(tokens, size))
+  use replacement <- result.try(dict.get(table.replacements, ngram))
+  Ok(Match(found: ngram, replacement: replacement, size: size, offset: 0))
 }
 
 /// The lexer keeps a hyphen inside a word, so `state-of-the-art` stays whole.
@@ -161,47 +177,27 @@ fn match_single(table: Table, first: Token) -> Result(Match, Nil) {
 /// come from a branch name such as `fix/initiate-flow`, and a Hard block there
 /// stops real work. The first matching part wins, because one report per token
 /// is enough to prompt a rewrite.
-fn match_part(table: Table, first: Token) -> Result(Match, Nil) {
-  case string.contains(first.lower, "-") {
-    False -> Error(Nil)
-    True -> part_match(table, string.split(first.lower, on: "-"), 0)
-  }
+fn part_match(table: Table, head: Token) -> Result(Match, Nil) {
+  use <- bool.guard(when: !string.contains(head.lower, "-"), return: Error(Nil))
+  string.split(head.lower, on: "-")
+  |> with_offsets
+  |> list.find_map(part_lookup(table, _))
 }
 
-fn part_match(
-  table: Table,
-  parts: List(String),
-  offset: Int,
-) -> Result(Match, Nil) {
-  case parts {
-    [] -> Error(Nil)
-    [part, ..rest] ->
-      case dict.get(table.replacements, part) {
-        Ok(replacement) ->
-          Ok(Match(part, Replacement(..replacement, severity: Soft), 1, offset))
-        // One more for the hyphen the split removed.
-        Error(_) -> part_match(table, rest, offset + string.length(part) + 1)
-      }
-  }
+/// Pairs each part with its offset in the token. The extra 1 covers the hyphen
+/// the split removed.
+fn with_offsets(parts: List(String)) -> List(#(String, Int)) {
+  parts
+  |> list.map_fold(from: 0, with: fn(offset, part) {
+    #(offset + string.length(part) + 1, #(part, offset))
+  })
+  |> pair.second
 }
 
-fn try_sizes(
-  table: Table,
-  tokens: List(Token),
-  size: Int,
-) -> Result(Match, Nil) {
-  case size <= 0 {
-    True -> Error(Nil)
-    False ->
-      case token.ngram_at(tokens, size) {
-        Error(_) -> try_sizes(table, tokens, size - 1)
-        Ok(ngram) ->
-          case dict.get(table.replacements, ngram) {
-            Ok(replacement) -> Ok(Match(ngram, replacement, size, 0))
-            Error(_) -> try_sizes(table, tokens, size - 1)
-          }
-      }
-  }
+fn part_lookup(table: Table, part: #(String, Int)) -> Result(Match, Nil) {
+  let #(text, offset) = part
+  use replacement <- result.try(dict.get(table.replacements, text))
+  Ok(Match(text, Replacement(..replacement, severity: Soft), 1, offset))
 }
 
 const not_approved = "dictionary/not-approved-word"

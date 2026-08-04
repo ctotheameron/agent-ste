@@ -1,6 +1,9 @@
+import gleam/bool
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{type Option, None, Some}
+import gleam/pair
 import gleam/regexp.{type Regexp}
+import gleam/result
 import gleam/string
 
 pub type Token {
@@ -18,10 +21,9 @@ pub type Lexer {
 const word_pattern = "([^a-z0-9_'\u{2019}-]*)([a-z0-9_'\u{2019}-]+)"
 
 pub fn lexer() -> Result(Lexer, Nil) {
-  case regexp.from_string(word_pattern) {
-    Ok(pattern) -> Ok(Lexer(pattern))
-    Error(_) -> Error(Nil)
-  }
+  regexp.from_string(word_pattern)
+  |> result.map(Lexer)
+  |> result.replace_error(Nil)
 }
 
 /// Splits a line into word tokens and records the 1-based column of each.
@@ -31,36 +33,37 @@ pub fn lexer() -> Result(Lexer, Nil) {
 /// gleam_regexp does not report a match offset.
 pub fn tokenize(lexer: Lexer, line: String) -> List(Token) {
   regexp.scan(lexer.pattern, string.lowercase(line))
-  |> list.fold(#([], 0), fn(state, match) {
-    let #(done, position) = state
-    case match.submatches {
-      [separator, Some(word)] -> {
-        let start = position + separator_length(separator)
-        #(
-          [Token(lower: word, column: start + 1), ..done],
-          start + string.length(word),
-        )
-      }
-      _ -> #(done, position)
-    }
-  })
-  |> fn(state) { list.reverse(state.0) }
+  |> list.map_fold(from: 0, with: take_token)
+  |> pair.second
+  |> option.values
 }
 
-fn separator_length(separator: option.Option(String)) -> Int {
-  case separator {
-    Some(text) -> string.length(text)
-    _ -> 0
+/// Places one match and returns the position where the next one starts.
+fn take_token(position: Int, match: regexp.Match) -> #(Int, Option(Token)) {
+  case match.submatches {
+    [separator, Some(word)] -> {
+      let start = position + width(separator)
+      let token = Token(lower: word, column: start + 1)
+      #(start + string.length(word), Some(token))
+    }
+    _ -> #(position, None)
   }
+}
+
+fn width(text: Option(String)) -> Int {
+  text
+  |> option.map(string.length)
+  |> option.unwrap(or: 0)
 }
 
 /// The n-gram of exactly `size` tokens at the head of the list, or an error
 /// when the list is too short. A caller tries the longest size first, so a
 /// phrase entry like `prior to` beats the single word `prior`.
 pub fn ngram_at(tokens: List(Token), size: Int) -> Result(String, Nil) {
-  let taken = list.take(tokens, size)
-  case list.length(taken) == size {
-    False -> Error(Nil)
-    True -> Ok(list.map(taken, fn(token) { token.lower }) |> string.join(" "))
-  }
+  let taken = list.take(tokens, up_to: size)
+  use <- bool.guard(when: list.length(taken) != size, return: Error(Nil))
+  taken
+  |> list.map(fn(token) { token.lower })
+  |> string.join(with: " ")
+  |> Ok
 }

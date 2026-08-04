@@ -17,6 +17,27 @@ Reasons:
 The host layer is JavaScript, in `src/host/` and `extension.mjs`. It owns file
 routing and pi events. It owns no rules.
 
+## Gleam style
+
+Follow gleam_stdlib. Read `build/packages/gleam_stdlib/src/gleam/` for examples.
+
+- Pass at most 3 arguments. Bundle a repeated pair into a record, such as
+  `source.Line`, or the `Search` value in `dictionary.gleam`.
+- Nest no deeper than 2 levels. Replace a nested `case` with a multi-subject
+  `case`, a small named function, or an early return.
+- Use `use` for an early return and for a chain that can fail. `bool.guard`
+  ends a function early, and `result.try` chains a step that can fail.
+- Prefer a pipeline over a temporary variable. `list.map_fold` threads state and
+  keeps the order, so it removes a manual `list.reverse`.
+- Map over a container rather than unwrap it. `result.map`, `option.map` and
+  `result.unwrap` replace a `case` on `Ok` and `Error`.
+- Name a tail-recursive helper with a `_loop` suffix, as the stdlib does.
+- A call takes one argument hole only. Write `f(_, line)`. Write a closure when
+  a call needs two.
+
+The stdlib itself calls no `use`. It supplies the functions that `use` needs,
+and this project calls them.
+
 ## Rules of the build
 
 - `gleam.toml` sets `target = "javascript"`.

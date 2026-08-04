@@ -1,66 +1,57 @@
 import gleam/list
+import gleam/pair
+import gleam/result
 import gleam/string
 
-/// Every 1-based column where `needle` appears as a whole word or whole phrase.
-/// A split-and-walk gives an exact column for a repeat. `regexp.scan` cannot:
-/// gleam_regexp reports match content but no offset.
+/// One place where a needle splits the haystack, with the text on each side.
+type Found {
+  Found(column: Int, before: String, after: String)
+}
+
+/// Every 1-based column where `needle` appears.
+pub fn columns(haystack: String, needle: String) -> List(Int) {
+  found(haystack, needle)
+  |> list.map(fn(one) { one.column })
+}
+
+/// Every 1-based column where `needle` appears as a whole word or phrase.
 pub fn occurrences(haystack: String, needle: String) -> List(Int) {
-  case string.split(string.lowercase(haystack), on: string.lowercase(needle)) {
-    [] | [_] -> []
-    [first, ..rest] -> walk(first, rest, needle, string.length(first), [])
-  }
+  found(string.lowercase(haystack), string.lowercase(needle))
+  |> list.filter(is_whole_word)
+  |> list.map(fn(one) { one.column })
 }
 
 /// The column of the first whole-word match, or 1 when there is none.
 pub fn first_column(haystack: String, needle: String) -> Int {
-  case occurrences(haystack, needle) {
-    [column, ..] -> column
-    [] -> 1
-  }
+  occurrences(haystack, needle)
+  |> list.first
+  |> result.unwrap(or: 1)
 }
 
-fn walk(
-  before: String,
-  rest: List(String),
-  needle: String,
-  start: Int,
-  found: List(Int),
-) -> List(Int) {
-  case rest {
-    [] -> list.reverse(found)
-    [after, ..tail] -> {
-      let bounded =
-        is_boundary(last_grapheme(before)) && is_boundary(first_grapheme(after))
-      let found = case bounded {
-        True -> [start + 1, ..found]
-        False -> found
-      }
-      let next_start = start + string.length(needle) + string.length(after)
-      walk(after, tail, needle, next_start, found)
-    }
-  }
+/// A split gives an exact column for a repeat. `regexp.scan` cannot, because
+/// gleam_regexp reports match content but no offset.
+fn found(haystack: String, needle: String) -> List(Found) {
+  string.split(haystack, on: needle)
+  |> list.window_by_2
+  |> list.map_fold(from: 0, with: fn(start, sides) {
+    let #(before, after) = sides
+    let at = start + string.length(before)
+    #(at + string.length(needle), Found(at + 1, before, after))
+  })
+  |> pair.second
 }
 
 /// The caller lowercases both sides, so this list holds lowercase only.
 const word_characters = "abcdefghijklmnopqrstuvwxyz0123456789_"
 
-fn is_boundary(character: String) -> Bool {
-  case character {
-    "" -> True
-    _ -> !string.contains(word_characters, character)
-  }
+fn is_whole_word(one: Found) -> Bool {
+  is_boundary(string.last(one.before)) && is_boundary(string.first(one.after))
 }
 
-fn last_grapheme(text: String) -> String {
-  case string.last(text) {
-    Ok(character) -> character
-    Error(_) -> ""
-  }
-}
-
-fn first_grapheme(text: String) -> String {
-  case string.first(text) {
-    Ok(character) -> character
-    Error(_) -> ""
+/// An edge of the haystack counts as a boundary, so `Error` gives True.
+fn is_boundary(edge: Result(String, Nil)) -> Bool {
+  case edge {
+    Error(_) -> True
+    Ok(character) -> !string.contains(word_characters, character)
   }
 }
