@@ -24,6 +24,12 @@ done
 # Test-only code and build artefacts have no place in a published dist. Gleam
 # copies every .mjs under test/, so the host tests arrive here too.
 rm -rf dist/ste/_gleam_artefacts dist/ste/ste_test.mjs
+
+# Gleam also copies src/host/*.mjs, because those files sit under src/. The
+# package ships src/host/ itself, and every copy here imports `../../dist/`,
+# which resolves to `dist/dist/` from this depth. Each copy is dead and broken,
+# so delete the directory.
+rm -rf dist/ste/host
 find dist -name "*.cache*" -delete
 find dist -name "*.test.mjs" -delete
 # `gleam test` also writes an entry point that imports ste_test.mjs. The line

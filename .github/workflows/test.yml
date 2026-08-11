@@ -29,8 +29,8 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      # A release ships one version. This check fails when the two manifests
-      # disagree.
+      # A release ships one version. This check fails when any manifest
+      # disagrees.
       - run: ./scripts/check-version.sh
 
       # The rule engine.
@@ -42,5 +42,6 @@ jobs:
       - run: ./scripts/build-dist.sh
       - run: node --test "test/host/*.test.mjs"
 
-      # Our own prose obeys the same rules.
-      - run: ./bin/ste-lint.mjs README.md AGENTS.md docs/releasing.md
+      # Our own prose obeys the same rules. The `lint` script names the files,
+      # so this job and a local run always read the same list.
+      - run: npm run lint

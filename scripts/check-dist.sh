@@ -38,4 +38,10 @@ if [ -n "$test_code" ]; then
   fail "dist/ holds test code: $(echo "$test_code" | tr '\n' ' ')"
 fi
 
+# Gleam copies src/host/*.mjs into the build output. The package ships
+# src/host/ itself, and a copy here imports a path that does not resolve.
+if [ -d dist/ste/host ]; then
+  fail "dist/ste/host holds a dead copy of the host layer"
+fi
+
 printf 'dist checked: %s files\n' "$files"

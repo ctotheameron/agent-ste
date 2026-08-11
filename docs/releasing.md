@@ -9,7 +9,7 @@ steps that a person must do by hand.
    `fix:`.
 2. The `release` workflow starts. release-please opens a release pull request,
    or it updates the open one. That pull request holds the next version in
-   `package.json`, in `gleam.toml` and in `CHANGELOG.md`.
+   `CHANGELOG.md` and in each of the four version files below.
 3. You merge the release pull request.
 4. The `release` workflow starts again. release-please tags the commit, and it
    creates the GitHub release.
@@ -23,9 +23,9 @@ It waits in the release pull request for the next `feat:` or `fix:`.
 
 ## Why release-please
 
-1. Two manifests hold the version. release-please updates a second file through
-   `extra-files`. It rewrites the annotated line in `gleam.toml`, and it leaves
-   every other line alone.
+1. Four files hold the version. release-please updates each extra file through
+   `extra-files`. It rewrites the annotated line in `gleam.toml`, and one JSON
+   field in each plugin file. It leaves every other line alone.
 2. It adds no file per change. changesets asks for a changeset file in each pull
    request, and it knows nothing about `gleam.toml`.
 3. It reads the conventional commits that this repository already writes.
@@ -33,10 +33,20 @@ It waits in the release pull request for the next `feat:` or `fix:`.
    publish needs two manual version bumps and one hand-written changelog.
 5. It costs one config file, one manifest file and one job.
 
-## Two manifests, one version
+## Four manifests, one version
 
-`scripts/check-version.sh` compares the version in `package.json` against the
-version in `gleam.toml`. It fails when the two differ.
+Four files declare the version:
+
+| File | Role |
+| --- | --- |
+| `package.json` | the npm package |
+| `gleam.toml` | the Gleam project |
+| `.claude-plugin/plugin.json` | the Claude Code plugin |
+| `.claude-plugin/marketplace.json` | the entry that installs that plugin |
+
+`scripts/check-version.sh` reads all four. It fails when any one of them
+differs from `package.json`. Add a new version file to that script and to the
+`extra-files` list in `release-please-config.json` in the same change.
 
 The test job runs the script. `scripts/build-dist.sh` also runs it, and
 `prepublishOnly` calls `build-dist.sh`. A mismatch stops a local build, a pull
