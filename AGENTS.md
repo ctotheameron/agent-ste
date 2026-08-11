@@ -190,6 +190,11 @@ not a download, so a release asset cannot carry `dist/`.
 
 ## Attribution
 
+The adjectival-participle idea comes from
+[jyooi/agent-simple-english](https://github.com/jyooi/agent-simple-english) (MIT),
+a TypeScript reimplementation of this project. It needs two words only, because
+it runs a part-of-speech tagger.
+
 The phrasal-verb, hedge, marketing and irregular-participle lists come from
 [Ryuketsukami/ste-plain-writing](https://github.com/Ryuketsukami/ste-plain-writing)
 (MIT). The rule summary comes from

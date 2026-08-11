@@ -232,6 +232,37 @@ pub fn flags_the_perfect_tense_test() {
   |> should.be_true
 }
 
+/// An `ing` word after `be` is not always a verb. `is nothing` and `is string`
+/// name a thing, and `is missing` describes one.
+pub fn a_noun_after_be_is_not_the_progressive_test() {
+  [
+    "The value is nothing.", "The type is string.", "The file is missing.",
+    "The job is pending.", "The group is noncapturing.",
+  ]
+  |> list.all(fn(text) { !list.contains(ids_for(text), "verb/progressive") })
+  |> should.be_true
+}
+
+/// An `ed` word after `have` is not always a participle. `has advanced` and
+/// `had limited` describe the noun that follows.
+pub fn an_adjective_after_have_is_not_the_perfect_test() {
+  [
+    "The API has advanced features.", "Access had limited scope.",
+    "The page has detailed steps.",
+  ]
+  |> list.all(fn(text) { !list.contains(ids_for(text), "verb/perfect") })
+  |> should.be_true
+}
+
+/// The exception list must not swallow a real report. `running` stays out of it.
+pub fn a_real_verb_still_reports_test() {
+  ids_for("The agent is running the build. We have completed the work.")
+  |> fn(ids) {
+    list.contains(ids, "verb/progressive") && list.contains(ids, "verb/perfect")
+  }
+  |> should.be_true
+}
+
 pub fn warns_on_the_passive_voice_test() {
   ids_for("The bolt was removed.")
   |> list.contains("verb/passive")

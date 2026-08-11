@@ -38,6 +38,27 @@ const irregular = "(?:done|made|sent|read|built|kept|held|set|put|run|written|sh
 /// fixed set of stems forms a real `'s` contraction.
 const contraction_s_stems = "(?:it|he|she|that|what|who|there|here|let|one|where|how|everyone|everybody|something|nothing|somebody|nobody)"
 
+/// A word that carries a verb ending but states no action.
+///
+/// Each verb rule matches an auxiliary, then a word that ends in `ing` or
+/// `ed`. That shape also fits `the file is missing`, where the second word
+/// describes. A part-of-speech tagger tells the two apart, and this engine
+/// holds none. A count over 402,000 words of real prose chose these words, and
+/// `running` stays out. A false report blocks a write, so the list takes the
+/// safer error.
+const not_a_verb = [
+  // A noun or a pronoun that ends in `ing`.
+  "nothing", "something", "anything", "everything", "string", "warning",
+  "meaning", "spelling", "wording", "heading",
+  // An adjective that ends in `ing`.
+  "missing", "pending", "confusing", "interesting", "existing", "remaining",
+  "outstanding", "ongoing", "upcoming", "incoming", "outgoing", "underlying",
+  "noncapturing", "breaking", "willing",
+  // An adjective that ends in `ed`.
+  "advanced", "limited", "detailed", "related", "dedicated", "complicated",
+  "sophisticated", "deprecated", "mixed", "varied",
+]
+
 /// Every regexp rule, one row each. A row pairs its patterns with the rule and
 /// the advice to report. The rule gives the severity.
 fn table() -> List(Spec) {
@@ -102,6 +123,7 @@ fn matches(probe: Probe, line: Line) -> List(Violation) {
 fn scan_one(pattern: Regexp, probe: Probe, line: Line) -> List(Violation) {
   let severity = rule.severity(probe.id)
   regexp.scan(pattern, string.lowercase(line.text))
+  |> list.filter(fn(match) { !states_no_action(match.content) })
   |> list.map(fn(match) {
     Violation(
       rule_id: probe.id,
@@ -111,6 +133,23 @@ fn scan_one(pattern: Regexp, probe: Probe, line: Line) -> List(Violation) {
       severity: severity,
     )
   })
+}
+
+/// True when the last word of a match states no action. The caller lowercases
+/// the text, so this compares lowercase only.
+fn states_no_action(content: String) -> Bool {
+  content
+  |> last_word
+  |> result.map(list.contains(not_a_verb, _))
+  |> result.unwrap(or: False)
+}
+
+fn last_word(content: String) -> Result(String, Nil) {
+  content
+  |> string.replace(each: "\t", with: " ")
+  |> string.split(on: " ")
+  |> list.filter(fn(word) { word != "" })
+  |> list.last
 }
 
 pub fn semicolon(line: Line) -> List(Violation) {
