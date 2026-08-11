@@ -13,8 +13,8 @@ import {
   summarise,
 } from "./src/host/lint.mjs";
 
-// Strict mode text for layer 1. The `say` tool is a tool call, and a tool call
-// is the one thing this API can block. Prose in a plain reply cannot be.
+// Strict mode text for layer 1. The `say` tool is a tool call. A tool call is
+// the one thing this API can block, and prose in a plain reply is not.
 const STRICT_NOTE = [
   "## Simplified Technical English: strict mode",
   "",

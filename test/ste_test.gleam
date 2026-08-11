@@ -220,6 +220,36 @@ pub fn flags_every_unambiguous_contraction_test() {
   |> should.equal([])
 }
 
+/// A period inside a URL, a file name or a version is not a sentence end.
+pub fn a_dotted_token_does_not_end_a_sentence_test() {
+  ids_for("See https://a.io/x.html and e.g. this, i.e. that. Fine.")
+  |> should.equal([])
+}
+
+/// A fragment that opens with a lowercase letter or a digit continues the
+/// sentence before it, so `Fig. 3` and `Dr. Smith` stay whole.
+pub fn an_abbreviation_keeps_its_sentence_test() {
+  ids_for("Ask Dr. Smith about it. Read Fig. 3 first. Then go.")
+  |> should.equal([])
+}
+
+/// The join must not swallow a real sentence boundary. A capital opens one.
+pub fn a_capital_still_opens_a_sentence_test() {
+  ids_for("One. Two. Three. Four. Five. Six. Seven.")
+  |> list.contains("length/paragraph")
+  |> should.be_true
+}
+
+/// A split sentence hid its own length, because each fragment counted alone.
+pub fn a_long_sentence_with_an_abbreviation_still_reports_test() {
+  ids_for(
+    "A long sentence with e.g. a list of things that runs well past the limit"
+    <> " of twenty five words in it.",
+  )
+  |> list.contains("length/sentence")
+  |> should.be_true
+}
+
 /// YAML front matter holds metadata, not prose.
 pub fn front_matter_hides_from_the_rules_test() {
   ids_for("---\ntitle: We must utilize it\n---\n\nClean prose.")

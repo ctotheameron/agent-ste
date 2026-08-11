@@ -49,8 +49,8 @@ Same meaning. Half the words. Zero faults.
 
 ## What you get
 
-**A standard, not an opinion.** ASD-STE100 exists because a mechanic in a hangar
-must read a procedure one time and get it right. Every rule earns its place. One
+**A standard, not an opinion.** ASD-STE100 exists for a reason. A mechanic in a
+hangar must read a procedure one time and get it right. Every rule earns its place. One
 word means one thing. A sentence stops at 20 words. The reader never guesses.
 
 **Enforcement at the keystroke, not at review.** A hard fault blocks the tool
