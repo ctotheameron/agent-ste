@@ -51,6 +51,35 @@ gleam test
 pi -e ./extension.mjs
 ```
 
+### Claude Code
+
+The same engine runs as a Claude Code plugin. Add the repository as a
+marketplace, then install the plugin:
+
+```
+/plugin marketplace add ctotheameron/pi-ste
+/plugin install ste@pi-ste
+```
+
+The plugin needs node only. It has no build step, because the npm release ships
+`dist/`. One hook covers each layer:
+
+| Hook | Layer |
+| --- | --- |
+| `SessionStart` | the rule list joins the session context |
+| `PreToolUse` on Write, Edit and Bash | a hard violation denies the call |
+| `Stop` | a hard violation in the reply blocks the stop |
+
+The `Stop` hook blocks, because a hook reaches the model only when it blocks.
+Claude Code sets `stop_hook_active` on the retry, and the hook then keeps quiet.
+One reply gets one block. `/ste strict off` stops the reply check.
+
+A hook error never blocks. When `dist/` is absent, the hook reports the fix and
+the event continues.
+
+In Claude Code the command reads `/ste status` too, because a hook has no status
+widget.
+
 ## Use
 
 ```
