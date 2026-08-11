@@ -45,20 +45,56 @@ function blank(text) {
   return " ".repeat(text.length);
 }
 
-/** Keeps only `//` or `#` comment bodies. Everything else becomes spaces. */
+/**
+ * Finds the column of a real comment marker, or -1 when the line holds none.
+ *
+ * `https://example.com` holds `//` and starts no comment. A colon in front of
+ * the marker names a scheme, so the search moves past it and tries again.
+ */
+function markerColumn(line, marker) {
+  let at = line.indexOf(marker);
+  while (at > 0 && line[at - 1] === ":") {
+    at = line.indexOf(marker, at + marker.length);
+  }
+  return at;
+}
+
+/** The count of quote characters that no backslash escapes. */
+function quoteCount(text, pattern) {
+  return (text.match(pattern) ?? []).length;
+}
+
+/**
+ * Keeps only `//` or `#` comment bodies. Everything else becomes spaces.
+ *
+ * A template literal spans lines, and its text often holds a URL or a word the
+ * rules ban. So this tracks an open backtick across lines and blanks the text
+ * inside it. A quote on the same line still uses a count, which is crude, and
+ * which needs no parser.
+ */
 function commentsOnly(content, marker) {
+  const tracksTemplate = marker === "//";
+  let inTemplate = false;
+
   return content
     .split("\n")
     .map((line) => {
-      const at = line.indexOf(marker);
+      const opened = inTemplate;
+      if (tracksTemplate && quoteCount(line, /(?<!\\)`/g) % 2 !== 0) {
+        inTemplate = !inTemplate;
+      }
+      if (opened) {
+        return blank(line);
+      }
+
+      const at = markerColumn(line, marker);
       if (at === -1) {
         return blank(line);
       }
       // A marker inside a string literal is not a comment. Counting unescaped
       // quotes before it is crude but it avoids a full parser.
       const before = line.slice(0, at);
-      const quotes = (before.match(/(?<!\\)["'`]/g) ?? []).length;
-      if (quotes % 2 !== 0) {
+      if (quoteCount(before, /(?<!\\)["'`]/g) % 2 !== 0) {
         return blank(line);
       }
       return blank(before) + " ".repeat(marker.length) + line.slice(at + marker.length);

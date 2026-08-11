@@ -269,6 +269,15 @@ pub fn an_indented_block_hides_from_the_rules_test() {
   |> should.equal([])
 }
 
+/// The host blanks the code around a comment. A comment body then arrives
+/// indented, and a masked line arrives as a run of spaces. Neither one opens a
+/// code block. An indent test that reads them as one silences every comment.
+pub fn a_masked_line_does_not_open_a_code_block_test() {
+  ids_for("          \n     A comment that says utilize.")
+  |> list.contains("dictionary/not-approved-word")
+  |> should.be_true
+}
+
 /// A nested list carries the indent of a code block, so a marker keeps its
 /// line as prose.
 pub fn a_nested_list_item_is_not_code_test() {

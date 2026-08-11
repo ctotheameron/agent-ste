@@ -24,7 +24,7 @@ type Scan {
     in_fence: Bool,
     in_front_matter: Bool,
     in_code: Bool,
-    after_blank: Bool,
+    after_empty: Bool,
     at_start: Bool,
   )
 }
@@ -34,7 +34,7 @@ fn start() -> Scan {
     in_fence: False,
     in_front_matter: False,
     in_code: False,
-    after_blank: True,
+    after_empty: True,
     at_start: True,
   )
 }
@@ -58,7 +58,10 @@ pub fn mask(text: String) -> String {
 /// Masks one line and reports what the next line inherits.
 fn mask_line(scan: Scan, line: String) -> #(Scan, String) {
   let trimmed = string.trim(line)
-  let next = Scan(..scan, at_start: False, after_blank: trimmed == "")
+  // An empty line, not a line of spaces. The host blanks the code around a
+  // comment, so a run of spaces marks masked code. A comment body after it is
+  // prose. A markdown code block sits after a truly empty line.
+  let next = Scan(..scan, at_start: False, after_empty: line == "")
 
   case kind_of(scan, line, trimmed) {
     FrontMatterOpen -> #(Scan(..next, in_front_matter: True), blank(line))
@@ -67,7 +70,9 @@ fn mask_line(scan: Scan, line: String) -> #(Scan, String) {
     Fence -> #(Scan(..next, in_fence: !scan.in_fence), blank(line))
     Fenced -> #(next, blank(line))
     Indented -> #(Scan(..next, in_code: True), blank(line))
-    // A blank line does not close an indented block. Code often holds one.
+    // A blank line does not close an indented block, and it opens none. Code
+    // holds a blank line. The host also leaves a run of spaces where it masked
+    // the code around a comment.
     BlankInCode -> #(next, line)
     Prose -> #(Scan(..next, in_code: False), mask_inline(line))
   }
@@ -110,8 +115,10 @@ fn body_kind(scan: Scan, line: String, trimmed: String) -> Kind {
   }
 }
 
+/// A line that holds no text opens no code block. Its indent equals its whole
+/// width, so the indent test would read it as code and hold that state open.
 fn text_kind(scan: Scan, line: String, trimmed: String) -> Kind {
-  use <- bool.guard(when: trimmed == "" && scan.in_code, return: BlankInCode)
+  use <- bool.guard(when: trimmed == "", return: BlankInCode)
   case is_indented_code(scan, line, trimmed) {
     True -> Indented
     False -> Prose
@@ -128,7 +135,7 @@ fn is_fence(trimmed: String) -> Bool {
 fn is_indented_code(scan: Scan, line: String, trimmed: String) -> Bool {
   // `||` binds looser than `|>`, so a pipeline here reads as one wrong
   // expression and blanks every line after a blank one. Name the parts.
-  let opens = scan.after_blank || scan.in_code
+  let opens = scan.after_empty || scan.in_code
   opens && indent(line) >= 4 && !starts_a_list(trimmed)
 }
 
