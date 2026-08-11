@@ -1,4 +1,4 @@
-# pi-ste
+# agent-ste
 
 Simplified Technical English (ASD-STE100) enforcement for
 [pi](https://github.com/earendil-works/pi-mono). The rule engine is Gleam. It
@@ -40,7 +40,7 @@ An identifier is never a violation. `const utilize = ...` passes. The comment
 `dist/` is a build artifact, so install from npm, where the release ships it:
 
 ```bash
-pi install npm:pi-ste
+pi install npm:agent-ste
 ```
 
 To run it from a checkout, build `dist/` first:
@@ -57,12 +57,15 @@ The same engine runs as a Claude Code plugin. Add the repository as a
 marketplace, then install the plugin:
 
 ```
-/plugin marketplace add ctotheameron/pi-ste
-/plugin install ste@pi-ste
+/plugin marketplace add ctotheameron/agent-ste
+/plugin install ste@agent-ste
 ```
 
-The plugin needs node only. It has no build step, because the npm release ships
-`dist/`. One hook covers each layer:
+The repository holds the marketplace manifest only. The manifest names npm as
+the plugin source, so Claude Code installs the published package, which ships
+`dist/`. `dist/` stays out of git, and the plugin needs no build step.
+
+One hook covers each layer:
 
 | Hook | Layer |
 | --- | --- |

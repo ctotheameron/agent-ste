@@ -77,7 +77,7 @@ async function ruleLayer() {
     const module = await import("./lint.mjs").catch((cause) => {
       throw new Error(
         "the rule engine failed to load, and dist/ is the usual reason. " +
-          "Run ./scripts/build-dist.sh, or install pi-ste from npm",
+          "Run ./scripts/build-dist.sh, or install agent-ste from npm",
         { cause },
       );
     });

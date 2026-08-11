@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "pi-ste",
+  "name": "agent-ste",
   "owner": {
     "name": "Cameron Moore"
   },
@@ -15,9 +15,12 @@
       "author": {
         "name": "Cameron Moore"
       },
-      "source": "./",
+      "source": {
+        "source": "npm",
+        "package": "agent-ste"
+      },
       "category": "development",
-      "homepage": "https://github.com/ctotheameron/pi-ste"
+      "homepage": "https://github.com/ctotheameron/agent-ste"
     }
   ]
 }

@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { argv, exit, stdin } from "node:process";
-import { fileSubject, lint, newEngine } from "../src/host/lint.mjs";
 
-function buildEngine() {
+// The rule layer loads on demand, not at the top of the file. A static import
+// fails before the first line runs, and the reason never reaches the user.
+// `dist/` is a build artifact, so an absent engine is a normal state in a fresh
+// checkout. Exit code 2 names that state, and it never means bad prose.
+async function ruleLayer() {
   try {
-    return newEngine();
-  } catch {
-    console.error("ste-lint: the rule engine failed to compile its patterns");
+    const module = await import("../src/host/lint.mjs");
+    return { ...module, engine: module.newEngine() };
+  } catch (error) {
+    console.error(
+      "ste-lint: the rule engine failed to load. Run ./scripts/build-dist.sh, " +
+        `or install agent-ste from npm.\n  ${error.message}`,
+    );
     return exit(2);
   }
 }
@@ -20,12 +27,14 @@ function readStdin() {
   });
 }
 
-function lintOne(compiled, path, content) {
-  const subject = fileSubject(path, content);
+function lintOne(rules, path, content) {
+  const subject = rules.fileSubject(path, content);
   if (subject === undefined) {
     return [];
   }
-  return lint(compiled, subject.text).map((violation) => ({ ...violation, path }));
+  return rules
+    .lint(rules.engine, subject.text)
+    .map((violation) => ({ ...violation, path }));
 }
 
 const HELP = `ste-lint — check text against Simplified Technical English
@@ -35,7 +44,8 @@ Usage:
   ste-lint --json <file>... Report JSON.
   cat x.md | ste-lint       Lint stdin as prose.
 
-Exit code 1 means at least one hard violation. Exit code 0 means none.`;
+Exit code 1 means at least one hard violation. Exit code 0 means none.
+Exit code 2 means the engine failed to load, so no prose was read.`;
 
 async function main(args) {
   if (args.includes("--help") || args.includes("-h")) {
@@ -45,13 +55,13 @@ async function main(args) {
 
   const json = args.includes("--json");
   const paths = args.filter((arg) => !arg.startsWith("-"));
-  const compiled = buildEngine();
+  const rules = await ruleLayer();
 
   const violations =
     paths.length === 0
-      ? lintOne(compiled, "stdin.md", await readStdin())
+      ? lintOne(rules, "stdin.md", await readStdin())
       : paths.flatMap((path) =>
-        lintOne(compiled, path, readFileSync(path, "utf8")),
+        lintOne(rules, path, readFileSync(path, "utf8")),
       );
 
   if (json) {

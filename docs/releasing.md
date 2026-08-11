@@ -1,6 +1,6 @@
-# Releasing pi-ste
+# Releasing agent-ste
 
-This document tells you how a version of pi-ste reaches npm. It also lists the
+This document tells you how a version of agent-ste reaches npm. It also lists the
 steps that a person must do by hand.
 
 ## The flow, in six steps
@@ -73,7 +73,7 @@ secret needs manual rotation. A leak of that token gives an attacker write
 access to the package. An OIDC token lives for one job only.
 
 npm needs the package to exist before it accepts a trusted publisher. The first
-publish of `pi-ste` is a manual publish from your machine. Every publish after
+publish of `agent-ste` is a manual publish from your machine. Every publish after
 that one comes from CI.
 
 ## Manual steps for the owner
@@ -104,7 +104,7 @@ Do these steps one time each.
    values:
 
    - Organization or user: `ctotheameron`
-   - Repository: `pi-ste`
+   - Repository: `agent-ste`
    - Workflow filename: `release.yml`
    - Environment name: empty
    - Allowed actions: `npm publish`
