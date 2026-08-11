@@ -220,6 +220,42 @@ pub fn flags_every_unambiguous_contraction_test() {
   |> should.equal([])
 }
 
+/// YAML front matter holds metadata, not prose.
+pub fn front_matter_hides_from_the_rules_test() {
+  ids_for("---\ntitle: We must utilize it\n---\n\nClean prose.")
+  |> should.equal([])
+}
+
+/// A closing `---` ends front matter, so prose after it still reports.
+pub fn prose_after_front_matter_still_reports_test() {
+  ids_for("---\ntitle: fine\n---\n\nWe must utilize it.")
+  |> list.contains("dictionary/not-approved-word")
+  |> should.be_true
+}
+
+/// A block indented by four spaces is code, the same as a fenced block.
+pub fn an_indented_block_hides_from_the_rules_test() {
+  ids_for("Prose.\n\n    utilize the leverage\n    terminate it")
+  |> should.equal([])
+}
+
+/// A nested list carries the indent of a code block, so a marker keeps its
+/// line as prose.
+pub fn a_nested_list_item_is_not_code_test() {
+  ids_for("- one\n    - we must utilize it")
+  |> list.contains("dictionary/not-approved-word")
+  |> should.be_true
+}
+
+/// A guard against one real bug. `||` binds looser than `|>`, so a pipeline in
+/// the indent test read as one wrong expression. It blanked every line after a
+/// blank one. That silenced the whole engine, and every other test still passed.
+pub fn a_blank_line_does_not_blank_the_next_one_test() {
+  ste.lint("We must utilize it.\n\nWe must utilize it again.")
+  |> list.length
+  |> should.equal(2)
+}
+
 pub fn flags_the_progressive_tense_test() {
   ids_for("The worker is running the job.")
   |> list.contains("verb/progressive")
