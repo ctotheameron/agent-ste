@@ -7,6 +7,7 @@ import ste/dictionary.{type Table}
 import ste/rule.{type Violation}
 import ste/segment.{type Splitter}
 import ste/source.{type Line}
+import ste/suppress
 import ste/token.{type Lexer}
 
 pub type Engine {
@@ -38,11 +39,15 @@ pub fn lint_json_with(engine: Engine, text: String) -> String {
 
 pub fn lint_with(engine: Engine, text: String) -> List(Violation) {
   let masked = source.mask(text)
+  let directives = suppress.directives(source.lines(masked))
+
   list.flatten([
     line_violations(engine, masked),
     sentence_violations(engine, masked),
     paragraph_violations(engine, masked),
   ])
+  |> suppress.apply(directives)
+  |> list.append(suppress.faults(directives))
 }
 
 fn line_violations(engine: Engine, masked: String) -> List(Violation) {
@@ -147,6 +152,9 @@ fn probe_text() -> String {
       <> " sentence that runs past the descriptive limit of twenty five"
       <> " words in total length.",
     "One. Two. Three. Four. Five. Six. Seven. Eight.",
+    // This covers the line after itself, and no line follows it. So it silences
+    // nothing, and its bad name reports.
+    "<!-- ste-disable-next-line no-such-rule -->",
   ]
   |> string.join(with: "\n")
 }

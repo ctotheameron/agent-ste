@@ -83,8 +83,31 @@ heuristic warns and never blocks. Only a deterministic check can stop a write.
 | `style/phrasal-verb` | hard | `spin up`, for `start` |
 | `style/hedge` | soft | `it is important to note` |
 | `style/marketing` | soft | `seamless`, `robust` |
+| `suppress/invalid-directive` | hard | a silence comment that silences nothing |
 
 Hard blocks a write. Soft warns and lets it through.
+
+## When a rule is wrong
+
+No linter reads intent. When a rule reports text that is right, silence that one
+rule on that one line:
+
+```md
+<!-- ste-disable-next-line style/marketing -->
+The robust estimator holds for this sample.
+```
+
+Use the comment marker of the file in source code:
+
+```ts
+// ste-disable-next-line dictionary/not-approved-word
+// The leverage ratio stays below two.
+```
+
+A space or a comma separates two rule ids. The comment covers the next line and
+no other, so it cannot silence a file. A comment that names no rule, or names a
+rule that does not exist, reports `suppress/invalid-directive`. A silent typo
+would read as a working comment.
 
 ## Where it looks
 

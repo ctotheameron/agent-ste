@@ -220,6 +220,67 @@ pub fn flags_every_unambiguous_contraction_test() {
   |> should.equal([])
 }
 
+// --- the suppression comment ---
+
+/// A directive silences the rule it names, on the next line only.
+pub fn a_directive_silences_the_next_line_test() {
+  ids_for(
+    "<!-- ste-disable-next-line dictionary/not-approved-word -->\n"
+    <> "We must utilize this.",
+  )
+  |> should.equal([])
+}
+
+/// The line after next keeps its report, so one comment cannot cover a file.
+pub fn a_directive_reaches_one_line_only_test() {
+  ids_for(
+    "<!-- ste-disable-next-line dictionary/not-approved-word -->\n"
+    <> "We must utilize this.\nWe must utilize that.",
+  )
+  |> list.contains("dictionary/not-approved-word")
+  |> should.be_true
+}
+
+/// A directive silences the rule it names, and no other rule.
+pub fn a_directive_silences_one_rule_only_test() {
+  ids_for(
+    "<!-- ste-disable-next-line style/semicolon -->\n"
+    <> "We must utilize it; and stop.",
+  )
+  |> should.equal(["dictionary/not-approved-word"])
+}
+
+/// A comma separates two names, and so does a space.
+pub fn a_directive_reads_a_list_of_rules_test() {
+  ids_for(
+    "<!-- ste-disable-next-line dictionary/not-approved-word, style/semicolon -->\n"
+    <> "We must utilize it; and stop.",
+  )
+  |> should.equal([])
+}
+
+/// The host reduces a source file to its comments, so one form serves them all.
+pub fn a_source_comment_holds_a_directive_test() {
+  ids_for(
+    "   ste-disable-next-line dictionary/not-approved-word\n"
+    <> "   We must utilize this.",
+  )
+  |> should.equal([])
+}
+
+/// A typo in a name reads as a working comment and silences nothing, so it
+/// reports.
+pub fn an_unknown_rule_name_reports_test() {
+  ids_for("<!-- ste-disable-next-line no-such-rule -->\nClean line.")
+  |> should.equal(["suppress/invalid-directive"])
+}
+
+/// A comment with no name at all silences nothing, so it reports.
+pub fn a_directive_with_no_rule_reports_test() {
+  ids_for("<!-- ste-disable-next-line -->\nClean line.")
+  |> should.equal(["suppress/invalid-directive"])
+}
+
 /// A period inside a URL, a file name or a version is not a sentence end.
 pub fn a_dotted_token_does_not_end_a_sentence_test() {
   ids_for("See https://a.io/x.html and e.g. this, i.e. that. Fine.")

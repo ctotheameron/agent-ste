@@ -1,4 +1,5 @@
 import gleam/json.{type Json}
+import gleam/list
 
 /// Every rule the engine can report. A new variant here makes the compiler ask
 /// for its name, its severity and its prompt line.
@@ -14,6 +15,7 @@ pub type Id {
   PhrasalVerb
   Hedge
   Marketing
+  InvalidDirective
 }
 
 pub type Severity {
@@ -47,7 +49,15 @@ pub fn all() -> List(Id) {
     PhrasalVerb,
     Hedge,
     Marketing,
+    InvalidDirective,
   ]
+}
+
+/// Reads a rule id back from its name. A suppression comment names a rule. A
+/// name the roster does not hold is a fault, and the reader must see it.
+pub fn from_string(name: String) -> Result(Id, Nil) {
+  all()
+  |> list.find(fn(id) { to_string(id) == name })
 }
 
 /// The name the host, the CLI and the prompt all report.
@@ -64,6 +74,7 @@ pub fn to_string(id: Id) -> String {
     PhrasalVerb -> "style/phrasal-verb"
     Hedge -> "style/hedge"
     Marketing -> "style/marketing"
+    InvalidDirective -> "suppress/invalid-directive"
   }
 }
 
@@ -82,6 +93,7 @@ pub fn severity(id: Id) -> Severity {
     PhrasalVerb -> Hard
     Hedge -> Soft
     Marketing -> Soft
+    InvalidDirective -> Hard
   }
 }
 
@@ -105,6 +117,8 @@ fn prompt(id: Id) -> String {
     Hedge -> "Do not hedge. Delete \"it is important to note\"."
     Marketing ->
       "Do not use a marketing adjective such as \"seamless\" or \"robust\"."
+    InvalidDirective ->
+      "A \"ste-disable-next-line\" comment must name at least one real rule id."
   }
 }
 
