@@ -7,6 +7,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
+# A release ships one version. Stop here when the two manifests disagree.
+./scripts/check-version.sh
+
 gleam build --target javascript
 
 out="build/dev/javascript"
@@ -23,7 +26,13 @@ done
 rm -rf dist/ste/_gleam_artefacts dist/ste/ste_test.mjs
 find dist -name "*.cache*" -delete
 find dist -name "*.test.mjs" -delete
+# `gleam test` also writes an entry point that imports ste_test.mjs. The line
+# above deletes that module, so the entry point points at nothing.
+find dist -name "gleam@@private_main_*.mjs" -delete
 
 printf 'dist built: %s files, %s\n' \
   "$(find dist -type f | wc -l | tr -d ' ')" \
   "$(du -sh dist | cut -f1)"
+
+# A build that writes nothing must not reach npm.
+./scripts/check-dist.sh

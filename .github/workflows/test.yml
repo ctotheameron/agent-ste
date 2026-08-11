@@ -6,6 +6,11 @@ on:
       - master
       - main
   pull_request:
+  # The release workflow calls this job and gates publish on the result.
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -18,6 +23,24 @@ jobs:
           gleam-version: "1.18.0"
           rebar3-version: "3"
           # elixir-version: "1"
+      # The host tests, the CLI and the extension all run on node.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      # A release ships one version. This check fails when the two manifests
+      # disagree.
+      - run: ./scripts/check-version.sh
+
+      # The rule engine.
       - run: gleam deps download
       - run: gleam test
       - run: gleam format --check src test
+
+      # The host tests and the CLI import dist/, so build it first.
+      - run: ./scripts/build-dist.sh
+      - run: node --test "test/host/*.test.mjs"
+
+      # Our own prose obeys the same rules.
+      - run: ./bin/ste-lint.mjs README.md AGENTS.md docs/releasing.md
