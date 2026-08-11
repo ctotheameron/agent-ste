@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "pi-ste",
+  "owner": {
+    "name": "Cameron Moore"
+  },
+  "metadata": {
+    "description": "Install source for the Simplified Technical English plugin."
+  },
+  "plugins": [
+    {
+      "name": "ste",
+      "description": "Simplified Technical English (ASD-STE100) enforcement for a write, an edit, a git commit message and a reply.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Cameron Moore"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/ctotheameron/pi-ste"
+    }
+  ]
+}

@@ -4,11 +4,14 @@
   "description": "Simplified Technical English (ASD-STE100) enforcement for pi. Rule engine in Gleam.",
   "keywords": [
     "pi",
+    "pi-package",
     "pi-extension",
     "ste",
     "asd-ste100",
     "simplified-technical-english",
     "technical-writing",
+    "claude-code",
+    "claude-code-plugin",
     "lint",
     "linter",
     "prose",
@@ -36,6 +39,9 @@
     "src/host",
     "bin",
     "extension.mjs",
+    ".claude-plugin",
+    "hooks",
+    "commands",
     "README.md"
   ],
   "pi": {
@@ -47,7 +53,7 @@
     "build": "./scripts/build-dist.sh",
     "prepublishOnly": "./scripts/build-dist.sh",
     "test": "gleam test && node --test \"test/host/*.test.mjs\"",
-    "lint": "./bin/ste-lint.mjs README.md AGENTS.md docs/releasing.md",
+    "lint": "./bin/ste-lint.mjs README.md AGENTS.md docs/releasing.md commands/ste.md",
     "check:version": "./scripts/check-version.sh",
     "check:dist": "./scripts/check-dist.sh"
   }

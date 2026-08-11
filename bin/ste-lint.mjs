@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
 import { argv, exit, stdin } from "node:process";
-import * as engine from "../dist/ste/ste.mjs";
-import { lintableText } from "../src/host/select.mjs";
+import { fileSubject, lint, newEngine } from "../src/host/lint.mjs";
 
 function buildEngine() {
-  const result = engine.new_engine();
-  if (!result.isOk()) {
+  try {
+    return newEngine();
+  } catch {
     console.error("ste-lint: the rule engine failed to compile its patterns");
-    exit(2);
+    return exit(2);
   }
-  return result[0];
 }
 
 function readStdin() {
@@ -22,14 +21,11 @@ function readStdin() {
 }
 
 function lintOne(compiled, path, content) {
-  const text = lintableText(path, content);
-  if (text === undefined) {
+  const subject = fileSubject(path, content);
+  if (subject === undefined) {
     return [];
   }
-  return JSON.parse(engine.lint_json_with(compiled, text)).map((violation) => ({
-    ...violation,
-    path,
-  }));
+  return lint(compiled, subject.text).map((violation) => ({ ...violation, path }));
 }
 
 const HELP = `ste-lint — check text against Simplified Technical English
