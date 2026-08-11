@@ -9,13 +9,30 @@ Reasons:
 
 - A lint rule is a pure function from text to a list of violations. Gleam gives
   pattern matching, exhaustive `case` checks and no `null`.
-- Gleam compiles to JavaScript, so the pi extension imports the engine in
-  process. There is no daemon and no IPC.
+- Gleam compiles to JavaScript, so every host imports the engine in process.
+  There is no daemon and no IPC.
 - The same pure source can compile to Erlang later, for a repo-wide sweep or an
   LSP daemon. Keep the core pure to hold that option open.
 
-The host layer is JavaScript, in `src/host/` and `extension.mjs`. It owns file
-routing and pi events. It owns no rules.
+## Where the host layer lives
+
+The host layer is JavaScript. It owns file routing, host events and file paths.
+It owns no rules.
+
+| File | Job |
+| --- | --- |
+| `src/host/lint.mjs` | the one rule layer every host calls |
+| `src/host/select.mjs` | which text the linter may read, per file type |
+| `src/host/hook.mjs` | maps a Claude Code event to a Claude Code result |
+| `src/host/session.mjs` | the per-session mode for Claude Code |
+| `extension.mjs` | the pi extension, three layers |
+| `bin/ste-lint.mjs` | the command |
+| `bin/ste-hook.mjs` | the Claude Code hook entry point |
+| `bin/ste-session.mjs` | the `/ste` command for Claude Code |
+
+Three hosts read one engine. A new check belongs in Gleam, or in
+`src/host/lint.mjs` when it is about text selection. It never belongs in one
+host alone, because the other two then drift.
 
 ## Gleam style
 
@@ -128,10 +145,48 @@ Measure before you optimise. Two guesses in this repo were both wrong.
 ## Test commands
 
 ```
-gleam test                    # the rule engine
-./bin/ste-lint.mjs README.md  # the CLI, and a check on our own prose
-pi -nc -e ./extension.mjs -p "..."   # the extension, end to end
+gleam test              # the rule engine
+npm test                # the rule engine, then every host test
+npm run lint            # our own prose, every tracked file
+npm run check:version   # the version, across all four manifests
+./scripts/build-dist.sh # dist/, plus both guards
+
+# the pi extension, end to end
+pi -nc -e ./extension.mjs -p "..."
+
+# the Claude Code hook, end to end
+printf '%s' '{"hook_event_name":"SessionStart","session_id":"t"}' |
+  node bin/ste-hook.mjs
+
+# the plugin manifests
+claude plugin validate .
 ```
+
+`npm run lint` reads every tracked file, comments included, because this project
+obeys its own rules. A pull request that fails it fails CI.
+
+## How it ships
+
+One npm publish serves all three hosts. `dist/` never enters git.
+
+| Host | How a user installs | What carries the engine |
+| --- | --- | --- |
+| pi | `pi install npm:agent-ste` | npm |
+| Claude Code | `/plugin marketplace add ctotheameron/agent-ste` | npm |
+| the command | `npm install --global agent-ste` | npm |
+
+Both galleries read npm, and neither one needs a second publish.
+
+The pi gallery at <https://pi.dev/packages> lists every npm package that carries
+the `pi-package` keyword. Our `package.json` carries it, so a publish lists us.
+The `pi` manifest also accepts an `image` or a `video` field for a preview.
+
+The Claude Code marketplace reads npm too. The repository commits
+`.claude-plugin/marketplace.json` only. That file names npm as the plugin source,
+so Claude Code installs the published package. A `url` source is a git remote,
+not a download, so a release asset cannot carry `dist/`.
+
+`docs/releasing.md` holds the release flow and the one-time setup.
 
 ## Attribution
 

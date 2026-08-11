@@ -80,26 +80,35 @@ that one comes from CI.
 
 Do these steps one time each.
 
-1. Create the `v0.1.0` tag on the current `main`, and push it. release-please
+1. Rename the GitHub repository to `agent-ste`. Every file in this tree points
+   at `ctotheameron/agent-ste`, and the Claude Code install command reads that
+   path. GitHub redirects the old name, so a clone keeps working.
+
+   ```
+   gh repo rename agent-ste
+   git remote set-url origin git@github.com:ctotheameron/agent-ste.git
+   ```
+
+2. Create the `v0.1.0` tag on the current `main`, and push it. release-please
    then reads the history after that tag only.
 
    ```
    git tag v0.1.0 && git push origin v0.1.0
    ```
 
-2. Open **Settings > Actions > General** in the GitHub repository. Under
+3. Open **Settings > Actions > General** in the GitHub repository. Under
    **Workflow permissions**, select **Allow GitHub Actions to create and approve
    pull requests**. release-please cannot open its release pull request without
    this permission.
 
-3. Publish version 0.1.0 by hand, and create the package on npm.
+4. Publish version 0.1.0 by hand, and create the package on npm.
 
    ```
    npm login
    npm publish --access public
    ```
 
-4. Add the trusted publisher. Open the package settings on npmjs.com, find the
+5. Add the trusted publisher. Open the package settings on npmjs.com, find the
    **Trusted Publisher** section, and select **GitHub Actions**. Give these
    values:
 
@@ -111,7 +120,7 @@ Do these steps one time each.
 
    The npm CLI does the same job. Run `npm trust github --help` for the flags.
 
-5. Delete the `NPM_TOKEN` secret if the repository holds one. Trusted
+6. Delete the `NPM_TOKEN` secret if the repository holds one. Trusted
    publishing makes it unnecessary.
 
 Step 4 needs two-factor authentication on the npm account. npm compares the

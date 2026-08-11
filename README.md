@@ -1,154 +1,162 @@
 # agent-ste
 
-Simplified Technical English (ASD-STE100) enforcement for
-[pi](https://github.com/earendil-works/pi-mono). The rule engine is Gleam. It
-compiles to JavaScript, so the extension runs it in process.
+Your coding agent writes clear English, or it does not write at all.
 
-## What it does
+`agent-ste` holds a coding agent to ASD-STE100 Simplified Technical English.
+That is the writing standard the aerospace industry uses for a maintenance
+manual. See the [ASD-STE100 site](https://www.asd-ste100.org/).
 
-The extension works in three layers:
+It runs in [pi](https://github.com/earendil-works/pi-mono), in
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code), and on its own as
+a command.
 
-1. **It tells the model the rules.** The system prompt gains a rule list built
-   from the same table the linter checks.
-2. **It blocks a bad write.** A hard violation in a `write`, an `edit` or a
-   `git commit` message stops the tool call. The reason names the line, the
-   column and the fix.
-3. **It checks the reply.** A status widget counts violations in the assistant
-   text. A hard violation also returns as a note, so the model reads the rule
-   it broke.
+## Why
 
-The note never rewrites prose, because a mechanical rewrite can change the
-meaning. When the turn still holds a tool call, the note arrives before the next
-model call. The last reply of a run has no tool call, so its note waits for the
-next prompt.
+A coding agent writes prose all day. It writes your commit messages, your code
+comments, your README and your reply. Left alone, it writes like this:
 
-## What it reads
+```md
+It is important to note that this module leverages a robust caching strategy
+in order to facilitate seamless performance improvements; it is being utilized
+by the majority of our services. We have implemented a comprehensive approach
+that will ensure optimal throughput.
+```
 
-| File | Text the linter sees |
+Four lines. 12 hard faults and 4 soft ones. Nobody asked for that prose, and
+every reader pays for it.
+
+`agent-ste` blocks the write and names each fault:
+
+```
+3:42  error  Use "use", not "leverages".            [dictionary/not-approved-word]
+4:1   error  Use "to", not "in order to".           [dictionary/not-approved-word]
+4:57  error  Do not use a semicolon. Write two sentences.        [style/semicolon]
+4:62  error  Use a simple tense. Do not use the progressive.  [verb/progressive]
+5:37  error  Use the simple past. Do not use the perfect tense.   [verb/perfect]
+3:1   error  This sentence has 30 words. Write no more than 25.  [length/sentence]
+3:1   warn   Delete "it is important to note".                     [style/hedge]
+3:54  warn   Delete "robust".                                  [style/marketing]
+```
+
+The agent reads the reasons and writes it again:
+
+```md
+This module caches a result, so a service reads it faster. Most of our
+services use it. The cache holds the best throughput we measured.
+```
+
+Same meaning. Half the words. Zero faults.
+
+## What you get
+
+**A standard, not an opinion.** ASD-STE100 exists because a mechanic in a hangar
+must read a procedure one time and get it right. Every rule earns its place. One
+word means one thing. A sentence stops at 20 words. The reader never guesses.
+
+**Enforcement at the keystroke, not at review.** A hard fault blocks the tool
+call before the file changes. The agent never argues, because the block names the
+line, the column and the word to use. Review time drops, because the prose
+arrives correct.
+
+**No rewriting.** The tool never edits your prose for you. A mechanical rewrite
+can change what a sentence means, and only the author knows the intent. It
+reports, and the author decides.
+
+**Prose only.** Your code is safe. An identifier such as `utilize` passes
+untouched. The same word in a comment does not.
+
+**No false comfort.** A rule that cries wolf teaches you to ignore it. So a
+heuristic warns and never blocks. Only a deterministic check can stop a write.
+
+## What it checks
+
+| Rule | Severity | It reports |
+| --- | --- | --- |
+| `dictionary/not-approved-word` | hard | a word with an approved replacement |
+| `length/sentence` | hard over 25, soft over 20 | a sentence a reader must read twice |
+| `length/paragraph` | hard over 6 sentences | a wall of text |
+| `verb/progressive` | hard | `is removing`, for `removes` |
+| `verb/perfect` | hard | `we have received`, for `we received` |
+| `verb/passive` | soft | a hidden actor |
+| `style/contraction` | hard | `do not`, never the short form |
+| `style/semicolon` | hard | two sentences in one coat |
+| `style/phrasal-verb` | hard | `spin up`, for `start` |
+| `style/hedge` | soft | `it is important to note` |
+| `style/marketing` | soft | `seamless`, `robust` |
+
+Hard blocks a write. Soft warns and lets it through.
+
+## Where it looks
+
+| File | Text it reads |
 | --- | --- |
-| `.md`, `.mdx`, `.txt`, `.rst` | all of it, minus code fences and code spans |
-| `.ts`, `.tsx`, `.js`, `.gleam`, `.go`, `.rs`, ... | `//` and `/* */` comments |
+| `.md`, `.mdx`, `.txt`, `.rst` | all prose, minus code fences and code spans |
+| `.ts`, `.js`, `.gleam`, `.go`, `.rs`, ... | `//` and `/* */` comments |
 | `.sh`, `.py`, `.rb`, `.yml`, `.toml` | `#` comments |
-| a `git commit -m` message in bash | the message |
+| a `git commit -m` message | the message |
+| the reply to you | the prose the agent sends |
 | anything else | nothing |
-
-An identifier is never a violation. `const utilize = ...` passes. The comment
-`// We will utilize it.` does not.
 
 ## Install
 
-`dist/` is a build artifact, so install from npm, where the release ships it:
+### pi
 
 ```bash
 pi install npm:agent-ste
 ```
 
-To run it from a checkout, build `dist/` first:
-
-```bash
-gleam test
-./scripts/build-dist.sh
-pi -e ./extension.mjs
-```
+The package also appears in the [pi gallery](https://pi.dev/packages).
 
 ### Claude Code
-
-The same engine runs as a Claude Code plugin. Add the repository as a
-marketplace, then install the plugin:
 
 ```
 /plugin marketplace add ctotheameron/agent-ste
 /plugin install ste@agent-ste
 ```
 
-The repository holds the marketplace manifest only. The manifest names npm as
-the plugin source, so Claude Code installs the published package, which ships
-`dist/`. `dist/` stays out of git, and the plugin needs no build step.
+### On its own
 
-One hook covers each layer:
+```bash
+npm install --global agent-ste
+ste-lint README.md docs/*.md
+cat draft.md | ste-lint
+```
 
-| Hook | Layer |
-| --- | --- |
-| `SessionStart` | the rule list joins the session context |
-| `PreToolUse` on Write, Edit and Bash | a hard violation denies the call |
-| `Stop` | a hard violation in the reply blocks the stop |
+Exit code 1 means a hard fault. Use it in a pre-commit hook or in CI.
 
-The `Stop` hook blocks, because a hook reaches the model only when it blocks.
-Claude Code sets `stop_hook_active` on the retry, and the hook then keeps quiet.
-One reply gets one block. `/ste strict off` stops the reply check.
-
-A hook error never blocks. When `dist/` is absent, the hook reports the fix and
-the event continues.
-
-In Claude Code the command reads `/ste status` too, because a hook has no status
-widget.
-
-## Use
+## Control it
 
 ```
 /ste             Toggle enforcement
 /ste off         Disable it
-/ste strict      Gate every reply through the say tool
+/ste strict      Gate every reply
 /ste strict off  Leave strict mode
 ```
 
-The model can also check its own text with the `ste_lint` tool.
+Normal mode blocks a write, and it counts the faults in each reply.
 
-## Strict mode
+Strict mode goes further. The agent sends every reply through one tool, and a
+hard fault blocks that call. You never read the bad text. Strict mode costs one
+tool call per reply. Turn it on for a document review, and off for normal work.
 
-The pi API blocks a tool call only, so a plain reply stays out of reach. In
-strict mode the model sends each reply through the `say` tool, and a hard
-violation blocks that call. You never read the bad text.
+The agent can also check a draft itself, with the `ste_lint` tool.
 
-The cost is one tool call for every reply. Use strict mode for a document
-review, and leave it off for normal work.
+## One rule it skips
 
-## The CLI
+STE caps a compound noun at 3 words. This tool does not check that cap. An
+English verb and a plural noun share a spelling, so a word-list test reports too
+many false alarms. That check needs a part-of-speech tagger, and a tagger costs
+more than the rule returns.
 
-```bash
-ste-lint README.md docs/*.md   # exit code 1 on a hard violation
-ste-lint --json src/**/*.ts
-cat draft.md | ste-lint
-```
+## Under the hood
 
-Use it in a pre-commit hook or in CI.
+The rule engine is Gleam, compiled to JavaScript, and every host runs it in
+process. There is no daemon, no service and no network call.
 
-## Rules
-
-| Rule | Severity |
-| --- | --- |
-| `dictionary/not-approved-word` | hard |
-| `length/sentence` | hard over 25 words, soft over 20 |
-| `length/paragraph` | hard over 6 sentences |
-| `verb/progressive` | hard |
-| `verb/perfect` | hard |
-| `verb/passive` | soft |
-| `style/contraction` | hard |
-| `style/semicolon` | hard |
-| `style/phrasal-verb` | hard |
-| `style/hedge` | soft |
-| `style/marketing` | soft |
-
-A `Hard` rule blocks a write. A `Soft` rule warns.
-
-STE also caps a compound noun at 3 words. This linter does not check that rule.
-A word-list heuristic gives too many false positives. An English third-person
-verb has the same spelling as a plural noun. That check needs part-of-speech
-tagging.
-
-## Build
-
-```bash
-asdf install gleam 1.18.0
-gleam test
-./scripts/build-dist.sh
-```
-
-The script writes `dist/`, a build artifact that `.gitignore` holds. `npm
-publish` runs the script first through `prepublishOnly`, so the release ships
-`dist/`.
+`AGENTS.md` holds the design, the measurements and the rules for a change.
+`docs/releasing.md` holds the release flow.
 
 ## Licence
 
-MIT. See `AGENTS.md` for attribution and for the limits ASD places on the
-dictionary.
+MIT. See [LICENSE](LICENSE). `AGENTS.md` names the sources of the word lists,
+and the limits ASD places on its dictionary.
