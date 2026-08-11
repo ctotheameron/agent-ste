@@ -47,7 +47,7 @@
     "build": "./scripts/build-dist.sh",
     "prepublishOnly": "./scripts/build-dist.sh",
     "test": "gleam test && node --test \"test/host/*.test.mjs\"",
-    "lint": "./bin/ste-lint.mjs README.md AGENTS.md",
+    "lint": "./bin/ste-lint.mjs README.md AGENTS.md docs/releasing.md",
     "check:version": "./scripts/check-version.sh",
     "check:dist": "./scripts/check-dist.sh"
   }

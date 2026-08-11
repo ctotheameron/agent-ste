@@ -43,4 +43,4 @@ jobs:
       - run: node --test "test/host/*.test.mjs"
 
       # Our own prose obeys the same rules.
-      - run: ./bin/ste-lint.mjs README.md AGENTS.md
+      - run: ./bin/ste-lint.mjs README.md AGENTS.md docs/releasing.md

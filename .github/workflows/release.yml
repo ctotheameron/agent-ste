@@ -1,0 +1,81 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+
+# Each job asks for the permission it needs, and for nothing more.
+permissions: {}
+
+jobs:
+  # release-please keeps one release pull request open. It collects every
+  # conventional commit on main, and it writes the next version into
+  # package.json, gleam.toml and CHANGELOG.md. A merge of that pull request
+  # tags the release and sets release_created to true.
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      released: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # The gate. npm publish waits for the same job that guards a pull request.
+  test:
+    needs: prepare
+    if: needs.prepare.outputs.released == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/test.yml
+
+  publish:
+    needs: [prepare, test]
+    if: needs.prepare.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing and npm provenance both read an OIDC token.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          gleam-version: "1.18.0"
+          rebar3-version: "3"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          # A release build reads no cache.
+          package-manager-cache: false
+
+      # Trusted publishing asks for npm 11.5.1 or later.
+      - run: npm install --global npm@latest
+
+      # dist/ holds the compiled rule engine, and .gitignore holds dist/. The
+      # tag carries no build output, so build it here.
+      - run: gleam deps download
+      - run: ./scripts/build-dist.sh
+      # build-dist.sh ends with this check. The step repeats it, because an
+      # empty package must never reach the registry.
+      - run: ./scripts/check-dist.sh
+
+      # The npm CLI reads the OIDC token first, and it falls back to
+      # NODE_AUTH_TOKEN. The publish works before the owner adds a trusted
+      # publisher on npmjs.com, and it needs no token after that step.
+      # See docs/releasing.md.
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
