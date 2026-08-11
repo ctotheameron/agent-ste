@@ -1,29 +1,17 @@
-import * as engine from "./dist/ste/ste.mjs";
-import { commitMessage, lintableText } from "./src/host/select.mjs";
-
-function buildEngine() {
-  const result = engine.new_engine();
-  if (!result.isOk()) {
-    throw new Error("ste: the rule engine failed to compile its patterns");
-  }
-  return result[0];
-}
-
-function lint(compiled, text) {
-  return JSON.parse(engine.lint_json_with(compiled, text));
-}
-
-function format(violations) {
-  return violations
-    .map((v) => `  ${v.line}:${v.column}  ${v.message}  [${v.ruleId}]`)
-    .join("\n");
-}
-
-function summarise(violations) {
-  const hard = violations.filter((v) => v.severity === "hard").length;
-  const soft = violations.length - hard;
-  return { hard, soft };
-}
+// Every rule call goes through src/host/lint.mjs. The hook in bin/ste-hook.mjs
+// calls the same module, so the two hosts cannot drift apart.
+import {
+  check,
+  commitSubject,
+  editSubject,
+  fileSubject,
+  format,
+  lint,
+  newEngine,
+  promptText,
+  replySubject,
+  summarise,
+} from "./src/host/lint.mjs";
 
 // Strict mode text for layer 1. The `say` tool is a tool call, and a tool call
 // is the one thing this API can block. Prose in a plain reply cannot be.
@@ -41,7 +29,7 @@ const STRICT_NOTE = [
 const NOTE_CAP = 3;
 
 export default function steExtension(pi) {
-  const compiled = buildEngine();
+  const compiled = newEngine();
   let enabled = true;
   let strict = false;
 
@@ -134,7 +122,7 @@ export default function steExtension(pi) {
     if (!enabled) {
       return undefined;
     }
-    const parts = [event.systemPrompt, engine.prompt_text()];
+    const parts = [event.systemPrompt, promptText()];
     if (strict) {
       parts.push(STRICT_NOTE);
     }
@@ -153,20 +141,11 @@ export default function steExtension(pi) {
       return undefined;
     }
 
-    const violations = lint(compiled, target.text);
-    report(ctx, violations);
-
-    const hard = violations.filter((v) => v.severity === "hard");
-    if (hard.length === 0) {
-      return undefined;
-    }
-    return {
-      block: true,
-      reason:
-        `Simplified Technical English: ${hard.length} violation(s) in ` +
-        `${target.label}.\n${format(hard)}\n` +
-        "Rewrite the text and call the tool again.",
-    };
+    const result = check(compiled, target);
+    report(ctx, result.violations);
+    return result.reason === undefined
+      ? undefined
+      : { block: true, reason: result.reason };
   });
 
   // Layer 3: check my own replies.
@@ -249,25 +228,22 @@ export default function steExtension(pi) {
 
 /** What, if anything, the linter should read from this tool call. */
 function subjectOf(event) {
+  const input = event.input ?? {};
   if (event.toolName === "write") {
-    const text = lintableText(event.input?.path ?? "", event.input?.content ?? "");
-    return text === undefined ? undefined : { text, label: event.input.path };
+    return fileSubject(input.path ?? "", input.content ?? "");
   }
   if (event.toolName === "edit") {
-    const edits = event.input?.edits ?? [];
-    const joined = edits.map((edit) => edit.newText ?? "").join("\n");
-    const text = lintableText(event.input?.path ?? "", joined);
-    return text === undefined ? undefined : { text, label: event.input.path };
+    const edits = input.edits ?? [];
+    return editSubject(
+      input.path ?? "",
+      edits.map((edit) => edit.newText ?? ""),
+    );
   }
   if (event.toolName === "say") {
-    const text = event.input?.text ?? "";
-    return text.trim() === "" ? undefined : { text, label: "the reply" };
+    return replySubject(input.text ?? "");
   }
   if (event.toolName === "bash") {
-    const message = commitMessage(event.input?.command ?? "");
-    return message === undefined
-      ? undefined
-      : { text: message, label: "the commit message" };
+    return commitSubject(input.command ?? "");
   }
   return undefined;
 }
