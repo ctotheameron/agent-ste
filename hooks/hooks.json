@@ -1,0 +1,42 @@
+{
+  "description": "Send the rules to the model, gate a write and a commit message, and check the reply. The command needs node only, because the npm release ships dist/. When dist/ is absent, the hook fails open and names the fix.",
+
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ste-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ste-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ste-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
