@@ -26,6 +26,9 @@ done
 rm -rf dist/ste/_gleam_artefacts dist/ste/ste_test.mjs
 find dist -name "*.cache*" -delete
 find dist -name "*.test.mjs" -delete
+# `gleam test` also writes an entry point that imports ste_test.mjs. The line
+# above deletes that module, so the entry point points at nothing.
+find dist -name "gleam@@private_main_*.mjs" -delete
 
 printf 'dist built: %s files, %s\n' \
   "$(find dist -type f | wc -l | tr -d ' ')" \

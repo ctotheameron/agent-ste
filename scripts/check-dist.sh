@@ -30,4 +30,12 @@ for entry in dist/prelude.mjs dist/ste/ste.mjs; do
   fi
 done
 
+# `gleam test` leaves a test entry point in the build output. A published dist
+# carries no test code.
+test_code="$(find dist \( -name "*.test.mjs" -o -name "*_test.mjs" \
+  -o -name "gleam@@private_main_*.mjs" \) -print)"
+if [ -n "$test_code" ]; then
+  fail "dist/ holds test code: $(echo "$test_code" | tr '\n' ' ')"
+fi
+
 printf 'dist checked: %s files\n' "$files"
