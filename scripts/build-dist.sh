@@ -7,6 +7,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
+# A release ships one version. Stop here when the two manifests disagree.
+./scripts/check-version.sh
+
 gleam build --target javascript
 
 out="build/dev/javascript"
@@ -27,3 +30,6 @@ find dist -name "*.test.mjs" -delete
 printf 'dist built: %s files, %s\n' \
   "$(find dist -type f | wc -l | tr -d ' ')" \
   "$(du -sh dist | cut -f1)"
+
+# A build that writes nothing must not reach npm.
+./scripts/check-dist.sh
