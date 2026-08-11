@@ -62,12 +62,19 @@ export function check(compiled, subject) {
   };
 }
 
-/** The text a host shows when a hard violation stops the work. */
-export function blockReason(label, hard) {
+/** The tail of a block reason. A host that gates a tool call needs no other. */
+const RETRY_TAIL = "Rewrite the text and call the tool again.";
+
+/**
+ * The text a host shows when a hard violation stops the work.
+ *
+ * The tail is the one part a host changes. A Claude Code Stop event ends a
+ * reply, and a reply needs no second tool call.
+ */
+export function blockReason(label, hard, tail = RETRY_TAIL) {
   return (
     `Simplified Technical English: ${hard.length} violation(s) in ` +
-    `${label}.\n${format(hard)}\n` +
-    "Rewrite the text and call the tool again."
+    `${label}.\n${format(hard)}\n${tail}`
   );
 }
 
