@@ -3,7 +3,7 @@
  *
  * A project chooses the severity of each rule in a `.ste.json` file at its
  * root. A rule reads `hard`, `soft` or `off`. Nothing else belongs in the file
- * yet, and an unknown key is an error, so a typo cannot pass in silence.
+ * yet. An unknown key is an error, so a typo cannot pass in silence.
  *
  * The loader owns no rule. It checks each name against the roster the engine
  * reports, so the engine stays the one source of truth.
@@ -92,8 +92,8 @@ export function readConfig(path, names) {
 /**
  * The settings for a directory, or empty settings when no file exists.
  *
- * A fault in the file throws, because a linter that reads a broken config and
- * carries on gives the author a false pass.
+ * A fault in the file throws. A linter that reads broken settings and carries
+ * on gives the author a false pass.
  */
 export function loadConfig(from, names) {
   const path = findConfig(from);
