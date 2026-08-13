@@ -14,22 +14,60 @@
 import * as engine from "../../dist/ste/ste.mjs";
 import { commitMessage, lintableText } from "./select.mjs";
 
-/** Compiles every pattern and the dictionary once. */
-export function newEngine() {
+/** Every rule name the roster holds. A host checks a config against this. */
+export function ruleNames() {
+  return JSON.parse(engine.rule_names_json());
+}
+
+/**
+ * Compiles every pattern and the dictionary once, and holds the settings.
+ *
+ * `rules` maps a rule name to `hard`, `soft` or `off`. The engine reports its
+ * own severity, and these settings override it. A project then decides what
+ * blocks a write and what only warns.
+ */
+export function newEngine(config = {}) {
   const result = engine.new_engine();
   if (!result.isOk()) {
     throw new Error("ste: the rule engine failed to compile its patterns");
   }
-  return result[0];
+  return { compiled: result[0], rules: config.rules ?? {} };
 }
 
-/** The rule list for a system prompt or for a session context block. */
-export function promptText() {
-  return engine.prompt_text();
+/**
+ * The rule list for a system prompt or for a session context block.
+ *
+ * A rule the project turned off leaves the list. Asking a model to obey a rule
+ * that nothing checks wastes its attention and the context it reads.
+ */
+export function promptText(handle) {
+  const text = engine.prompt_text();
+  const off = Object.entries(handle?.rules ?? {})
+    .filter(([, setting]) => setting === "off")
+    .map(([name]) => `(${name})`);
+  if (off.length === 0) {
+    return text;
+  }
+  return text
+    .split("\n")
+    .filter((line) => !off.some((mark) => line.endsWith(mark)))
+    .join("\n");
 }
 
-export function lint(compiled, text) {
-  return JSON.parse(engine.lint_json_with(compiled, text));
+/** Applies the project settings. A rule set to `off` reports nothing. */
+function configured(violations, rules) {
+  return violations.flatMap((violation) => {
+    const setting = rules[violation.ruleId];
+    if (setting === undefined) {
+      return [violation];
+    }
+    return setting === "off" ? [] : [{ ...violation, severity: setting }];
+  });
+}
+
+export function lint(handle, text) {
+  const found = JSON.parse(engine.lint_json_with(handle.compiled, text));
+  return configured(found, handle.rules);
 }
 
 /** One line for each violation, with the line, the column and the fix. */

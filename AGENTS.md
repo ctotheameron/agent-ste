@@ -23,6 +23,7 @@ It owns no rules.
 | --- | --- |
 | `src/host/lint.mjs` | the one rule layer every host calls |
 | `src/host/select.mjs` | which text the linter may read, per file type |
+| `src/host/config.mjs` | reads `.ste.json`, and checks it against the roster |
 | `src/host/hook.mjs` | maps a Claude Code event to a Claude Code result |
 | `src/host/session.mjs` | the per-session mode for Claude Code |
 | `extension.mjs` | the pi extension, three layers |

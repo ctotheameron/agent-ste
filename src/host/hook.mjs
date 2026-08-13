@@ -19,6 +19,7 @@
  * fail-open result.
  */
 
+import { loadConfig } from "./config.mjs";
 import { readState } from "./session.mjs";
 
 /** The tail of a block reason. A reply needs no second tool call. */
@@ -72,7 +73,21 @@ function context(hookEventName, additionalContext) {
  */
 let rules;
 
-async function ruleLayer() {
+/**
+ * Reads `.ste.json` from the session directory, if one exists.
+ *
+ * A broken file gives the built-in severities and one warning. A gate that
+ * blocks every write over a setting file helps nobody.
+ */
+function settings(module, cwd) {
+  try {
+    return { config: loadConfig(cwd ?? process.cwd(), module.ruleNames()) };
+  } catch (error) {
+    return { config: { rules: {} }, fault: error.message };
+  }
+}
+
+async function ruleLayer(cwd) {
   if (rules === undefined) {
     const module = await import("./lint.mjs").catch((cause) => {
       throw new Error(
@@ -81,7 +96,8 @@ async function ruleLayer() {
         { cause },
       );
     });
-    rules = { module, engine: module.newEngine() };
+    const { config, fault } = settings(module, cwd);
+    rules = { module, engine: module.newEngine(config), fault };
   }
   return rules;
 }
@@ -138,14 +154,18 @@ function checkReply({ module, engine }, event) {
 
 async function answer(event, state) {
   if (event.hook_event_name === "SessionStart") {
-    const { module } = await ruleLayer();
-    return context("SessionStart", module.promptText());
+    const { module, engine, fault } = await ruleLayer(event.cwd);
+    const text = module.promptText(engine);
+    return context(
+      "SessionStart",
+      fault === undefined ? text : `${text}\n\nste config: ${fault}`,
+    );
   }
   if (event.hook_event_name === "PreToolUse") {
-    return gate(await ruleLayer(), event);
+    return gate(await ruleLayer(event.cwd), event);
   }
   if (event.hook_event_name === "Stop" && state.strict) {
-    return checkReply(await ruleLayer(), event);
+    return checkReply(await ruleLayer(event.cwd), event);
   }
   return nothing();
 }

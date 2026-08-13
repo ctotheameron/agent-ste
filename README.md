@@ -109,6 +109,30 @@ no other, so it cannot silence a file. A comment that names no rule, or names a
 rule that does not exist, reports `suppress/invalid-directive`. A silent typo
 would read as a working comment.
 
+## Settings
+
+A whole rule is too blunt for one line, and a project sometimes wants a
+different line. Put a `.ste.json` file at the root of the project:
+
+```json
+{
+  "rules": {
+    "verb/passive": "off",
+    "style/marketing": "hard",
+    "length/paragraph": "soft"
+  }
+}
+```
+
+Each rule reads `hard`, `soft` or `off`. Every host reads the file: pi, Claude
+Code and the command. The command also takes `--config <path>` for one file.
+
+A rule set to `off` also leaves the rule list the model reads. It then wastes no
+context on a rule that nothing checks.
+
+A bad name, a bad severity, or any other key stops the command with exit code 2.
+A linter that reads broken settings and reports a pass gives a false result.
+
 ## Where it looks
 
 | File | Text it reads |

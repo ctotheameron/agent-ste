@@ -294,6 +294,15 @@ pub fn an_abbreviation_keeps_its_sentence_test() {
   |> should.equal([])
 }
 
+/// A digit and a period is no initial. `code 2. A linter` holds two sentences.
+pub fn a_digit_before_a_capital_ends_a_sentence_test() {
+  ids_for(
+    "A name that is no rule stops the command with exit code 2. A linter that"
+    <> " reads broken settings and reports a pass gives a false result.",
+  )
+  |> should.equal([])
+}
+
 /// The join must not swallow a real sentence boundary. A capital opens one.
 pub fn a_capital_still_opens_a_sentence_test() {
   ids_for("One. Two. Three. Four. Five. Six. Seven.")

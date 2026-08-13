@@ -266,8 +266,23 @@ fn last_word(text: String) -> String {
 }
 
 /// One letter and a period, such as the `J.` of `J. Smith`.
+///
+/// A digit does not count here. `exit code 2. A linter` holds two sentences,
+/// and a digit test joins them into one long one.
 fn is_initial(word: String) -> Bool {
-  string.length(word) == 2 && string.ends_with(word, ".") && opens_small(word)
+  string.length(word) == 2
+  && string.ends_with(word, ".")
+  && opens_with_letter(word)
+}
+
+const lowercase_letters = "abcdefghijklmnopqrstuvwxyz"
+
+/// The caller lowercases the word, so this reads lowercase only.
+fn opens_with_letter(word: String) -> Bool {
+  case string.first(word) {
+    Error(_) -> False
+    Ok(character) -> string.contains(lowercase_letters, character)
+  }
 }
 
 /// Places one match and returns the offset where the next one starts.

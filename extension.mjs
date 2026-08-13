@@ -1,5 +1,6 @@
 // Every rule call goes through src/host/lint.mjs. The hook in bin/ste-hook.mjs
 // calls the same module, so the two hosts cannot drift apart.
+import { loadConfig } from "./src/host/config.mjs";
 import {
   check,
   commitSubject,
@@ -10,8 +11,20 @@ import {
   newEngine,
   promptText,
   replySubject,
+  ruleNames,
   summarise,
 } from "./src/host/lint.mjs";
+
+// Reads `.ste.json` from the project, if the project holds one. A broken file
+// gives a warning and the built-in severities. Blocking every write over a
+// setting file is worse than reading the defaults.
+function settings() {
+  try {
+    return { config: loadConfig(process.cwd(), ruleNames()) };
+  } catch (error) {
+    return { config: { rules: {} }, fault: error.message };
+  }
+}
 
 // Strict mode text for layer 1. The `say` tool is a tool call. A tool call is
 // the one thing this API can block, and prose in a plain reply is not.
@@ -29,9 +42,17 @@ const STRICT_NOTE = [
 const NOTE_CAP = 3;
 
 export default function steExtension(pi) {
-  const compiled = newEngine();
+  const { config, fault } = settings();
+  const compiled = newEngine(config);
   let enabled = true;
   let strict = false;
+
+  if (fault) {
+    pi.on("session_start", (_event, ctx) => {
+      ctx.ui.notify(`STE config: ${fault}`, "warn");
+      return undefined;
+    });
+  }
 
   function report(ctx, violations) {
     const { hard, soft } = summarise(violations);
@@ -122,7 +143,7 @@ export default function steExtension(pi) {
     if (!enabled) {
       return undefined;
     }
-    const parts = [event.systemPrompt, promptText()];
+    const parts = [event.systemPrompt, promptText(compiled)];
     if (strict) {
       parts.push(STRICT_NOTE);
     }

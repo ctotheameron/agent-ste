@@ -131,6 +131,17 @@ fn word_line(entry: dictionary.Entry) -> Result(String, Nil) {
   |> result.map(fn(head) { "- " <> entry.approved <> " — not " <> head })
 }
 
+/// Every rule name the roster holds, as JSON.
+///
+/// A host reads this to check a config file. It returns JSON for the reason
+/// `lint_json_with` does, so no host depends on the shape of a Gleam List.
+pub fn rule_names_json() -> String {
+  rule.all()
+  |> list.map(rule.to_string)
+  |> json.array(json.string)
+  |> json.to_string
+}
+
 /// Every rule id the engine can emit. A test compares this against
 /// `rule.all()`, so the prompt can never promise an unenforced rule.
 pub fn implemented_rule_ids() -> List(String) {
