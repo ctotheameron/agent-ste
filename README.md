@@ -158,7 +158,7 @@ The package also appears in the [pi gallery](https://pi.dev/packages).
 
 ```
 /plugin marketplace add ctotheameron/agent-ste
-/plugin install ste@agent-ste
+/plugin install ste@ctotheameron
 ```
 
 ### On its own

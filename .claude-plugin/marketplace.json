@@ -1,11 +1,11 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "agent-ste",
+  "name": "ctotheameron",
   "owner": {
     "name": "Cameron Moore"
   },
   "metadata": {
-    "description": "Install source for the Simplified Technical English plugin."
+    "description": "Plugins by Cameron Moore."
   },
   "plugins": [
     {
