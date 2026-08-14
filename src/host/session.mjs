@@ -7,19 +7,25 @@
  * under the session id, and holds two flags.
  */
 
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /**
- * Both flags start on.
+ * Enforcement starts on, and the reply gate starts off.
  *
- * `strict` starts on here, and off in the pi extension. The reason is the
- * channel. pi can steer a note into the same run, so the extension does not
- * need to block a reply. A Claude Code hook reaches the model only when it
- * blocks, and `stop_hook_active` limits that block to one retry.
+ * The pi extension starts the same way. A reply gate is the one layer a host
+ * cannot hide. Claude Code streams the text before a Stop hook runs.
+ * So the default reports a reply rather than blocking it, and `/ste strict`
+ * asks for the block.
  */
-export const DEFAULT_STATE = { enabled: true, strict: true };
+export const DEFAULT_STATE = {
+  enabled: true,
+  strict: false,
+  pending: [],
+  replied: "",
+};
 
 const DIRECTORY = join(tmpdir(), "ste-session");
 
@@ -42,10 +48,25 @@ export function statePath(sessionId) {
 export function readState(sessionId) {
   try {
     const raw = JSON.parse(readFileSync(statePath(sessionId), "utf8"));
-    return { enabled: raw.enabled !== false, strict: raw.strict !== false };
+    return {
+      enabled: raw.enabled !== false,
+      strict: raw.strict === true,
+      pending: Array.isArray(raw.pending) ? raw.pending : [],
+      replied: typeof raw.replied === "string" ? raw.replied : "",
+    };
   } catch {
     return DEFAULT_STATE;
   }
+}
+
+/**
+ * A short name for one reply.
+ *
+ * Claude Code can send the same Stop event twice. The name tells a repeat from
+ * a new reply, so one reply gives one report.
+ */
+export function identify(text) {
+  return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
 export function writeState(sessionId, state) {
@@ -62,17 +83,18 @@ export function writeState(sessionId, state) {
  */
 export function apply(state, word) {
   const trimmed = word.trim().toLowerCase();
+  const carry = { pending: state.pending ?? [], replied: state.replied ?? "" };
   if (trimmed === "strict" || trimmed === "strict on") {
-    return { enabled: true, strict: true };
+    return { ...carry, enabled: true, strict: true };
   }
   if (trimmed === "strict off") {
-    return { enabled: state.enabled, strict: false };
+    return { ...carry, enabled: state.enabled, strict: false };
   }
   if (trimmed === "status") {
     return state;
   }
   const enabled = trimmed === "" ? !state.enabled : trimmed !== "off";
-  return { enabled, strict: enabled && state.strict };
+  return { ...carry, enabled, strict: enabled && state.strict };
 }
 
 /** One line for the user, and for the model that reads the command output. */
@@ -82,6 +104,6 @@ export function describe(state) {
   }
   const reply = state.strict
     ? "A hard violation in a reply blocks the stop, one time."
-    : "A reply goes through, and only a write or a commit message blocks.";
+    : "A reply goes through, and its faults reach the model at your next prompt.";
   return `STE on, strict ${state.strict ? "on" : "off"}. ${reply}`;
 }

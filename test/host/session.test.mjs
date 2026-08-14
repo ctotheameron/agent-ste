@@ -6,53 +6,65 @@ import {
   DEFAULT_STATE,
   apply,
   describe,
+  identify,
   readState,
   statePath,
   writeState,
 } from "../../src/host/session.mjs";
 
-const ON = { enabled: true, strict: true };
+const empty = { pending: [], replied: "" };
+const ON = { ...empty, enabled: true, strict: true };
+const OFF = { ...empty, enabled: false, strict: false };
+const SOFT = { ...empty, enabled: true, strict: false };
 
-test("it starts on, and strict", () => {
-  assert.deepEqual(DEFAULT_STATE, { enabled: true, strict: true });
+// The pi extension starts the same way. Claude Code cannot hide a reply, so
+// the gate stays off until a user asks for it.
+test("it starts on, with the reply gate off", () => {
+  assert.deepEqual(DEFAULT_STATE, {
+    enabled: true,
+    strict: false,
+    pending: [],
+    replied: "",
+  });
 });
 
 test("off stops every check, and clears strict mode", () => {
-  assert.deepEqual(apply(ON, "off"), { enabled: false, strict: false });
+  assert.deepEqual(apply(ON, "off"), OFF);
 });
 
 test("on holds the strict flag it finds", () => {
-  assert.deepEqual(apply(ON, "on"), { enabled: true, strict: true });
-  assert.deepEqual(apply({ enabled: false, strict: false }, "on"), {
-    enabled: true,
-    strict: false,
-  });
+  assert.deepEqual(apply(ON, "on"), ON);
+  assert.deepEqual(apply(OFF, "on"), SOFT);
 });
 
 test("an empty word toggles", () => {
-  assert.deepEqual(apply(ON, ""), { enabled: false, strict: false });
-  assert.deepEqual(apply({ enabled: false, strict: false }, ""), {
-    enabled: true,
-    strict: false,
-  });
+  assert.deepEqual(apply(ON, ""), OFF);
+  assert.deepEqual(apply(OFF, ""), SOFT);
 });
 
 test("strict turns enforcement on too", () => {
-  assert.deepEqual(apply({ enabled: false, strict: false }, "strict"), ON);
+  assert.deepEqual(apply(OFF, "strict"), ON);
   assert.deepEqual(apply(ON, "strict on"), ON);
-  assert.deepEqual(apply(ON, "strict off"), { enabled: true, strict: false });
+  assert.deepEqual(apply(ON, "strict off"), SOFT);
 });
 
 test("status changes nothing", () => {
-  const state = { enabled: false, strict: false };
-  assert.deepEqual(apply(state, "status"), state);
+  assert.deepEqual(apply(OFF, "status"), OFF);
   assert.deepEqual(apply(ON, " STATUS "), ON);
+});
+
+// A user runs /ste in the middle of a turn. The report of the reply before it
+// must survive that command.
+test("a command keeps the pending report", () => {
+  const waiting = { ...ON, pending: [{ ruleId: "style/semicolon" }], replied: "abc" };
+  assert.deepEqual(apply(waiting, "strict off").pending, waiting.pending);
+  assert.equal(apply(waiting, "strict off").replied, "abc");
 });
 
 test("it reports one line for each state", () => {
   assert.match(describe(ON), /^STE on, strict on\./);
-  assert.match(describe({ enabled: true, strict: false }), /^STE on, strict off\./);
-  assert.match(describe({ enabled: false, strict: false }), /^STE off\./);
+  assert.match(describe(SOFT), /^STE on, strict off\./);
+  assert.match(describe(OFF), /^STE off\./);
 });
 
 test("it reads the default state for a session it never saw", () => {
@@ -62,8 +74,23 @@ test("it reads the default state for a session it never saw", () => {
 test("it reads back the state it saved", (t) => {
   const id = "test-round-trip";
   t.after(() => rmSync(statePath(id), { force: true }));
-  writeState(id, { enabled: false, strict: false });
-  assert.deepEqual(readState(id), { enabled: false, strict: false });
+  writeState(id, OFF);
+  assert.deepEqual(readState(id), OFF);
+});
+
+// An old state file holds no `strict` key. It must read as off, not on. An
+// upgrade must not switch the reply gate on behind a user.
+test("an absent strict flag reads as off", (t) => {
+  const id = "test-old-file";
+  t.after(() => rmSync(statePath(id), { force: true }));
+  writeState(id, { enabled: true });
+  assert.deepEqual(readState(id), { ...empty, enabled: true, strict: false });
+});
+
+test("one reply gives one name, and two replies give two", () => {
+  assert.equal(identify("a reply"), identify("a reply"));
+  assert.notEqual(identify("a reply"), identify("a different reply"));
+  assert.equal(identify("a reply").length, 16);
 });
 
 test("a damaged state file gives the default", (t) => {

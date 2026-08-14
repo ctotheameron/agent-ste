@@ -37,6 +37,18 @@
           }
         ]
       }
+    ],
+
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ste-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }

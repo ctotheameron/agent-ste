@@ -20,7 +20,7 @@
  */
 
 import { loadConfig } from "./config.mjs";
-import { readState } from "./session.mjs";
+import { identify, readState, writeState } from "./session.mjs";
 
 /** The tail of a block reason. A reply needs no second tool call. */
 const REPLY_TAIL = "Write the reply again in Simplified Technical English.";
@@ -132,6 +132,64 @@ function gate({ module, engine }, event) {
     : allow(module.warnReason(subject.label, result.soft));
 }
 
+/**
+ * Records the faults of a reply, and blocks nothing.
+ *
+ * This is the layer the pi extension runs by default. pi sends the faults back
+ * as a note, and Claude Code has no note channel. So the hook keeps them, and
+ * the next prompt carries them to the model.
+ *
+ * A repeat of the same Stop event changes nothing, because the name of the
+ * reply already sits in the state.
+ */
+function recordReply({ module, engine }, event, state) {
+  const text = event.last_assistant_message;
+  if (typeof text !== "string") {
+    return nothing();
+  }
+  const subject = module.replySubject(text);
+  const name = identify(text);
+  if (subject === undefined || name === state.replied) {
+    return nothing();
+  }
+
+  const hard = module.check(engine, subject).hard;
+  writeState(event.session_id, {
+    ...state,
+    replied: name,
+    pending: hard,
+  });
+  return nothing();
+}
+
+/**
+ * Hands the faults of the last reply to the model, and clears them.
+ *
+ * A report reaches the model one time. A second prompt with no new fault adds
+ * nothing to the context.
+ */
+function deliverReply(event, state) {
+  const pending = state.pending ?? [];
+  if (pending.length === 0) {
+    return nothing();
+  }
+  writeState(event.session_id, { ...state, pending: [] });
+  return context(
+    "UserPromptSubmit",
+    `Your previous reply broke Simplified Technical English ${pending.length} ` +
+      `time(s):\n${formatOf(pending)}\nCorrect this in your next reply. Do not ` +
+      "apologise for it.",
+  );
+}
+
+// The formatter lives in the rule layer, and this module loads that layer on
+// demand. A recorded fault already holds its text, so read it from the report.
+function formatOf(violations) {
+  return violations
+    .map((v) => `  ${v.line}:${v.column}  ${v.message}  [${v.ruleId}]`)
+    .join("\n");
+}
+
 function checkReply({ module, engine }, event) {
   // `stop_hook_active` marks a stop that a hook blocked already. A second block
   // on the same stop can loop, so the reply goes through.
@@ -164,8 +222,14 @@ async function answer(event, state) {
   if (event.hook_event_name === "PreToolUse") {
     return gate(await ruleLayer(event.cwd), event);
   }
-  if (event.hook_event_name === "Stop" && state.strict) {
-    return checkReply(await ruleLayer(event.cwd), event);
+  if (event.hook_event_name === "Stop") {
+    const rules = await ruleLayer(event.cwd);
+    return state.strict
+      ? checkReply(rules, event)
+      : recordReply(rules, event, state);
+  }
+  if (event.hook_event_name === "UserPromptSubmit") {
+    return deliverReply(event, state);
   }
   return nothing();
 }

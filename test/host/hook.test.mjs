@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { test } from "node:test";
 import { execPath } from "node:process";
 import { failOpen, respond } from "../../src/host/hook.mjs";
+import { statePath } from "../../src/host/session.mjs";
 
 const HOOK = new URL("../../bin/ste-hook.mjs", import.meta.url).pathname;
 
@@ -175,6 +177,74 @@ test("Stop blocks one time only, so it cannot loop", async () => {
     ON,
   );
   assert.deepEqual(result, {});
+});
+
+// The pi extension counts the faults of a reply and sends them back as a note.
+// Claude Code has no note channel, so the hook keeps them until the next prompt.
+test("Stop records a reply, and the next prompt carries the faults", async (t) => {
+  const session = "test-feedback-loop";
+  t.after(() => rmSync(statePath(session), { force: true }));
+  const reply = { hook_event_name: "Stop", last_assistant_message: "We will initiate it." };
+
+  // No state argument, so the hook reads the file and finds the default.
+  assert.deepEqual(await respond(event({ ...reply, session_id: session })), {});
+
+  const delivered = await respond(
+    event({ hook_event_name: "UserPromptSubmit", session_id: session }),
+  );
+  const text = delivered.hookSpecificOutput.additionalContext;
+  assert.match(text, /broke Simplified Technical English 1 time/);
+  assert.match(text, /Use "start", not "initiate"/);
+
+  // One reply gives one report. A second prompt adds nothing.
+  assert.deepEqual(
+    await respond(event({ hook_event_name: "UserPromptSubmit", session_id: session })),
+    {},
+  );
+});
+
+test("the same Stop twice reports one time", async (t) => {
+  const session = "test-feedback-repeat";
+  t.after(() => rmSync(statePath(session), { force: true }));
+  const reply = event({
+    hook_event_name: "Stop",
+    session_id: session,
+    last_assistant_message: "We will initiate it.",
+  });
+
+  await respond(reply);
+  await respond(reply);
+  const delivered = await respond(
+    event({ hook_event_name: "UserPromptSubmit", session_id: session }),
+  );
+  assert.match(
+    delivered.hookSpecificOutput.additionalContext,
+    /1 time\(s\)/,
+  );
+});
+
+test("a clean reply leaves nothing for the next prompt", async (t) => {
+  const session = "test-feedback-clean";
+  t.after(() => rmSync(statePath(session), { force: true }));
+  await respond(
+    event({
+      hook_event_name: "Stop",
+      session_id: session,
+      last_assistant_message: "Start the release. Test it now.",
+    }),
+  );
+  assert.deepEqual(
+    await respond(event({ hook_event_name: "UserPromptSubmit", session_id: session })),
+    {},
+  );
+});
+
+test("a disabled session reports no reply fault", async () => {
+  const delivered = await respond(
+    event({ hook_event_name: "UserPromptSubmit" }),
+    { ...OFF, pending: [{ ruleId: "style/semicolon", message: "x", line: 1, column: 1 }] },
+  );
+  assert.deepEqual(delivered, {});
 });
 
 test("Stop passes an empty reply and a reply it cannot read", async () => {

@@ -180,11 +180,15 @@ Exit code 1 means a hard fault. Use it in a pre-commit hook or in CI.
 /ste strict off  Leave strict mode
 ```
 
-Normal mode blocks a write, and it counts the faults in each reply.
+Both hosts start the same way. Normal mode blocks a write and a commit message.
+It reads each reply too, and it hands the faults to the agent before its next
+answer. It hides nothing and blocks no reply.
 
-Strict mode goes further. The agent sends every reply through one tool, and a
-hard fault blocks that call. You never read the bad text. Strict mode costs one
-tool call per reply. Turn it on for a document review, and off for normal work.
+Strict mode goes further, and the two hosts differ here. In pi the agent sends
+every reply through one tool, and a hard fault blocks that call. You never read
+the bad text. Claude Code streams a reply before any hook runs. A block there
+asks for a rewrite, and you read the first answer anyway. Turn strict on for a
+document review, and leave it off for normal work.
 
 The agent can also check a draft itself, with the `ste_lint` tool.
 
