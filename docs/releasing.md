@@ -58,78 +58,65 @@ The workflow prefers npm trusted publishing with OIDC. The npm CLI reads an
 OIDC token from the runner, and it exchanges that token for a short-lived
 registry token. The repository holds no long-lived npm credential.
 
-The publish step also passes `NODE_AUTH_TOKEN` from a `NPM_TOKEN` secret. The
-npm CLI reads the OIDC token first, and it falls back to the secret. The step
-works in both modes:
+This repository holds a trusted publisher, and it holds no npm secret. The
+publish step still reads `NODE_AUTH_TOKEN` from an `NPM_TOKEN` secret, which is
+absent. The npm CLI reads the OIDC token first, so the step needs no secret.
 
-| Mode | What the owner does | What the owner accepts |
-| --- | --- | --- |
-| Trusted publishing | Adds a trusted publisher on npmjs.com | The first publish is manual. |
-| `NPM_TOKEN` secret | Adds an automation token as a secret | A long-lived credential lives in the repository. |
+The repository is public, so npm attaches a provenance statement to each
+release. An OIDC token lives for one job. A secret would need rotation, and a
+leak of one gives an attacker write access to the package.
 
-Trusted publishing is the better default for this repository. The repository is
-public, so npm attaches a provenance statement to the release. A token in a
-secret needs manual rotation. A leak of that token gives an attacker write
-access to the package. An OIDC token lives for one job only.
+A token is no longer a real second option. npm demands two-factor
+authentication or a granular token with the 2FA bypass, and it restricts that
+bypass. A classic automation token answers 403 on a new package.
 
-npm needs the package to exist before it accepts a trusted publisher. The first
-publish of `agent-ste` is a manual publish from your machine. Every publish after
-that one comes from CI.
+npm needs the package to exist before it accepts a trusted publisher, so the
+first publish came from a laptop. Every publish after that one comes from CI.
 
 ## Manual steps for the owner
 
-Do these steps one time each.
+Nobody needs to repeat these steps here. The record stays, because a fork or a
+second package walks the same path. Each step hid a trap.
 
-1. Rename the GitHub repository to `agent-ste`. Every file in this tree points
-   at `ctotheameron/agent-ste`, and the Claude Code install command reads that
-   path. GitHub redirects the old name, so a clone keeps working.
+1. **The repository name.** `gh repo rename agent-ste` renames it and rewrites
+   the git remote. GitHub redirects the old name, so an old clone keeps working.
 
-   ```
-   gh repo rename agent-ste
-   git remote set-url origin git@github.com:ctotheameron/agent-ste.git
-   ```
-
-2. Create the `v0.1.0` tag on the current `main`, and push it. release-please
-   then reads the history after that tag only.
+2. **The pull request permission.** Actions cannot open a release pull request
+   by default. release-please then fails, and it names the reason. Set the
+   permission under **Settings > Actions > General**, or run:
 
    ```
-   git tag v0.1.0 && git push origin v0.1.0
+   gh api -X PUT repos/ctotheameron/agent-ste/actions/permissions/workflow \
+     -F can_approve_pull_request_reviews=true
    ```
 
-3. Open **Settings > Actions > General** in the GitHub repository. Under
-   **Workflow permissions**, select **Allow GitHub Actions to create and approve
-   pull requests**. release-please cannot open its release pull request without
-   this permission.
+3. **Two-factor authentication on the npm account.** npm refuses a publish
+   without it. A passkey works, and so does an authenticator app.
 
-4. Publish version 0.1.0 by hand, and create the package on npm.
+4. **The first publish, from a laptop.** npm accepts no trusted publisher for a
+   package that does not exist yet.
 
    ```
    npm login
    npm publish --access public
    ```
 
-5. Add the trusted publisher. Open the package settings on npmjs.com, find the
-   **Trusted Publisher** section, and select **GitHub Actions**. Give these
-   values:
+   Run this in a real terminal. A passkey opens a browser, and npm masks its own
+   auth URL when stdout is a pipe. It then exits with `EOTP` rather than waiting.
 
-   - Organization or user: `ctotheameron`
-   - Repository: `agent-ste`
-   - Workflow filename: `release.yml`
-   - Environment name: empty
-   - Allowed actions: `npm publish`
+5. **The trusted publisher.** Open the package settings on npmjs.com, find the
+   **Trusted Publisher** section, and select **GitHub Actions**. Give the
+   organization `ctotheameron`, the repository `agent-ste`, the workflow file
+   `release.yml`, and an empty environment.
 
-   The npm CLI does the same job. Run `npm trust github --help` for the flags.
+   Use the website. `npm trust github` answers `400 Bad Request` with no reason.
+   Read the result back with `npm trust list agent-ste`.
 
-6. Delete the `NPM_TOKEN` secret if the repository holds one. Trusted
-   publishing makes it unnecessary.
+6. **The secret.** Delete `NPM_TOKEN` if one exists. Trusted publishing needs no
+   credential, and a dead secret only misleads a reader.
 
-Step 4 needs two-factor authentication on the npm account. npm compares the
-`repository.url` field in `package.json` against the GitHub repository, so keep
-that field correct.
-
-If you prefer a token, do step 3 and then add an npm automation token as the
-`NPM_TOKEN` secret. Skip step 4. The publish still attaches provenance, because
-the job holds `id-token: write` and the repository is public.
+npm compares the `repository.url` field of `package.json` against the GitHub
+repository, so keep that field correct.
 
 ## Limits to know
 
