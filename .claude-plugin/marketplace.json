@@ -11,7 +11,7 @@
     {
       "name": "ste",
       "description": "Simplified Technical English (ASD-STE100) enforcement for a write, an edit, a git commit message and a reply.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "author": {
         "name": "Cameron Moore"
       },

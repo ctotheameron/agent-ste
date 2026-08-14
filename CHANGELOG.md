@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/ctotheameron/agent-ste/compare/v0.4.0...v0.4.1) (2026-08-14)
+
+
+### Bug fixes
+
+* **hook:** give each gated tool its own matcher ([68eb816](https://github.com/ctotheameron/agent-ste/commit/68eb8167377ab8d7d82b7ff0cbadf6765795b037))
+
 ## [0.4.0](https://github.com/ctotheameron/agent-ste/compare/v0.3.1...v0.4.0) (2026-08-14)
 
 
