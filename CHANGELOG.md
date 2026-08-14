@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/ctotheameron/agent-ste/compare/v0.3.0...v0.3.1) (2026-08-14)
+
+
+### Bug fixes
+
+* keep the ste-lint command in the published package ([896cbb1](https://github.com/ctotheameron/agent-ste/commit/896cbb1cdfac12ae5465fc931f43b59dfcb215b6))
+
 ## [0.3.0](https://github.com/ctotheameron/agent-ste/compare/v0.2.0...v0.3.0) (2026-08-14)
 
 
