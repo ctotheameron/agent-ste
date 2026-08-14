@@ -127,6 +127,25 @@ different line. Put a `.ste.json` file at the root of the project:
 Each rule reads `hard`, `soft` or `off`. Every host reads the file: pi, Claude
 Code and the command. The command also takes `--config <path>` for one file.
 
+### One default for a whole machine
+
+A fleet of headless agents carries no repository file. So a global file holds
+the default, and a project file refines it:
+
+| Source | Path |
+| --- | --- |
+| the environment | `STE_CONFIG=/etc/ste.json` |
+| the config directory | `$XDG_CONFIG_HOME/ste/config.json`, else `~/.config/ste/config.json` |
+| the project | `.ste.json`, found from the working directory upward |
+
+The project wins for each rule it names, and it keeps the rest. `STE_CONFIG`
+replaces the config directory path. A missing file there is an error, because an
+operator who names a file wants it.
+
+This pairs well with a warn-only fleet. Set every rule to `soft` in the global
+file, and no write ever blocks. The agent still reads each fault and corrects
+the next line it writes.
+
 A rule set to `off` also leaves the rule list the model reads. It then wastes no
 context on a rule that nothing checks.
 

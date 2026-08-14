@@ -7,12 +7,33 @@
  *
  * The loader owns no rule. It checks each name against the roster the engine
  * reports, so the engine stays the one source of truth.
+ *
+ * Two files can apply. A global file gives a machine or an image its default,
+ * and a project file refines it. The project wins for each rule it names.
  */
 
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { env } from "node:process";
 
 export const CONFIG_NAME = ".ste.json";
+
+/**
+ * The global file, which holds the default for every session on a machine.
+ *
+ * `STE_CONFIG` names it outright, which suits an image or a fleet. Without that
+ * variable the path follows the XDG directory, and a relative `XDG_CONFIG_HOME`
+ * does not count.
+ */
+export function globalPath() {
+  if (env.STE_CONFIG) {
+    return { path: env.STE_CONFIG, named: true };
+  }
+  const base = env.XDG_CONFIG_HOME;
+  const root = base && isAbsolute(base) ? base : join(homedir(), ".config");
+  return { path: join(root, "ste", "config.json"), named: false };
+}
 
 const SETTINGS = ["hard", "soft", "off"];
 
@@ -89,13 +110,43 @@ export function readConfig(path, names) {
   return { rules: checkRules(path, value.rules ?? {}, names), path };
 }
 
+function exists(path) {
+  try {
+    readFileSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The settings for a directory, or empty settings when no file exists.
  *
- * A fault in the file throws. A linter that reads broken settings and carries
- * on gives the author a false pass.
+ * A fault in either file throws. A linter that reads broken settings and
+ * carries on gives the author a false pass. An absent global file is normal,
+ * unless `STE_CONFIG` named it, because an operator who names a file wants it.
  */
 export function loadConfig(from, names) {
-  const path = findConfig(from);
-  return path === undefined ? { rules: {}, path: undefined } : readConfig(path, names);
+  const global = globalPath();
+  const paths = [];
+  let rules = {};
+
+  if (global.named && !exists(global.path)) {
+    throw new ConfigError(
+      `${global.path}: STE_CONFIG names this file, and it does not open.`,
+    );
+  }
+  if (exists(global.path)) {
+    rules = readConfig(global.path, names).rules;
+    paths.push(global.path);
+  }
+
+  const project = findConfig(from);
+  if (project !== undefined) {
+    // The project wins for each rule it names, and it keeps the rest.
+    rules = { ...rules, ...readConfig(project, names).rules };
+    paths.push(project);
+  }
+
+  return { rules, paths, path: paths[paths.length - 1] };
 }
