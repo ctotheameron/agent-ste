@@ -25,7 +25,7 @@
     "type": "git",
     "url": "git+https://github.com/ctotheameron/agent-ste.git"
   },
-  "author": "ctotheameron (https://github.com/ctotheameron)",
+  "author": "Cameron Austgen (https://github.com/ctotheameron)",
   "type": "module",
   "license": "MIT",
   "engines": {

@@ -2,10 +2,10 @@
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ctotheameron",
   "owner": {
-    "name": "Cameron Moore"
+    "name": "Cameron Austgen"
   },
   "metadata": {
-    "description": "Plugins by Cameron Moore."
+    "description": "Plugins by Cameron Austgen."
   },
   "plugins": [
     {
@@ -13,7 +13,7 @@
       "description": "Simplified Technical English (ASD-STE100) enforcement for a write, an edit, a git commit message and a reply.",
       "version": "0.4.0",
       "author": {
-        "name": "Cameron Moore"
+        "name": "Cameron Austgen"
       },
       "source": {
         "source": "npm",
