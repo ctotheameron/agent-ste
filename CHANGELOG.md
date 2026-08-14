@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0](https://github.com/ctotheameron/agent-ste/compare/v0.3.1...v0.4.0) (2026-08-14)
+
+
+### Features
+
+* **config:** one settings file for a whole machine ([9734cd8](https://github.com/ctotheameron/agent-ste/commit/9734cd85a55ffa1cce2aa67d5cd9fa9ba8684e49))
+
+
+### Bug fixes
+
+* **hook:** make Claude Code behave as pi does ([cb7eac7](https://github.com/ctotheameron/agent-ste/commit/cb7eac722f64eeb49aa1a3abf6b69d404a84894c))
+
+
+### Documentation
+
+* **releasing:** record the setup that shipped 0.3.1 ([c121718](https://github.com/ctotheameron/agent-ste/commit/c1217181e82a87cab930c9ee5b4d6ef752acf243))
+
 ## [0.3.1](https://github.com/ctotheameron/agent-ste/compare/v0.3.0...v0.3.1) (2026-08-14)
 
 
