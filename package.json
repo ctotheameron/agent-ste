@@ -32,7 +32,7 @@
     "node": ">=22.19.0"
   },
   "bin": {
-    "ste-lint": "./bin/ste-lint.mjs"
+    "ste-lint": "bin/ste-lint.mjs"
   },
   "files": [
     "dist",
