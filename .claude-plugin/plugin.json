@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "ste",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Simplified Technical English (ASD-STE100) enforcement for a write, an edit, a git commit message and a reply.",
   "repository": "https://github.com/ctotheameron/agent-ste",
   "license": "MIT",

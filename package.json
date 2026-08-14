@@ -1,6 +1,6 @@
 {
   "name": "agent-ste",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Simplified Technical English (ASD-STE100) enforcement for pi. Rule engine in Gleam.",
   "keywords": [
     "pi",
