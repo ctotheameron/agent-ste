@@ -3,9 +3,14 @@
   "name": "ste",
   "version": "0.1.0",
   "description": "Simplified Technical English (ASD-STE100) enforcement for a write, an edit, a git commit message and a reply.",
-  "repository": "https://github.com/ctotheameron/pi-ste",
+  "repository": "https://github.com/ctotheameron/agent-ste",
   "license": "MIT",
-  "keywords": ["simplified-technical-english", "asd-ste100", "lint", "hooks"],
+  "keywords": [
+    "simplified-technical-english",
+    "asd-ste100",
+    "lint",
+    "hooks"
+  ],
   "author": {
     "name": "Cameron Moore"
   }
