@@ -1,6 +1,8 @@
 {
   "description": "Send the rules to the model, gate a write and a commit message, and check the reply. The command needs node only, because the npm release ships dist/. When dist/ is absent, the hook fails open and names the fix.",
 
+  "_matcher": "Each tool takes its own entry. A matcher such as Write|Edit fires for the first name only, and it drops the rest in silence. See anthropics/claude-code#6305, which stays open.",
+
   "hooks": {
     "SessionStart": [
       {
@@ -16,7 +18,27 @@
 
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|Bash",
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ste-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/ste-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

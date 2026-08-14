@@ -46,3 +46,32 @@ test("the pi entry point exists", () => {
     statSync(join(root, entry));
   }
 });
+
+const hooks = JSON.parse(readFileSync(join(root, "hooks/hooks.json"), "utf8"));
+
+// A matcher such as `Write|Edit` fires for the first name only, and it drops
+// the rest in silence. So each tool takes its own entry, and this test stops a
+// future edit from folding them back together.
+test("no hook matcher holds an alternation", () => {
+  for (const [name, entries] of Object.entries(hooks.hooks)) {
+    for (const entry of entries) {
+      assert.ok(
+        !(entry.matcher ?? "").includes("|"),
+        `${name} holds the matcher "${entry.matcher}". Write one entry per tool.`,
+      );
+    }
+  }
+});
+
+test("every gated tool holds an entry", () => {
+  const gated = hooks.hooks.PreToolUse.map((entry) => entry.matcher).sort();
+  assert.deepEqual(gated, ["Bash", "Edit", "Write"]);
+});
+
+test("every hook runs the same command", () => {
+  const commands = Object.values(hooks.hooks)
+    .flat()
+    .flatMap((entry) => entry.hooks.map((one) => one.command));
+  assert.equal(new Set(commands).size, 1, "one entry point serves every event");
+  assert.match(commands[0], /ste-hook\.mjs/);
+});
