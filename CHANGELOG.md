@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/ctotheameron/agent-ste/compare/v0.2.0...v0.3.0) (2026-08-14)
+
+
+### Features
+
+* **plugin:** name the marketplace ctotheameron ([10a10d9](https://github.com/ctotheameron/agent-ste/commit/10a10d976d38ab8b102ae5f47ce804a9c41cc999))
+
 ## [0.2.0](https://github.com/ctotheameron/agent-ste/compare/v0.1.0...v0.2.0) (2026-08-14)
 
 
