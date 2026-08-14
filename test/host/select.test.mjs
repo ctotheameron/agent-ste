@@ -1,6 +1,46 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { commitMessage } from "../../src/host/select.mjs";
+import {
+  bashMessage,
+  bashMessageLabel,
+  commitMessage,
+} from "../../src/host/select.mjs";
+
+// --- a message in any command, not only in git commit ---
+
+// A harness posts prose with its own command, and `-m` or `--message` names the
+// text. `git commit` holds no monopoly on a sentence.
+test("it reads a message from a command that is not git", () => {
+  assert.equal(
+    bashMessage(`sky action slack-post --message "we ship it today"`),
+    "we ship it today",
+  );
+  assert.equal(
+    bashMessage(`gh pr comment 12 --message "it reads well"`),
+    "it reads well",
+  );
+});
+
+// `-m` also carries a file mode, a memory limit and a shell variable. None of
+// those is prose, and a false report on one would block real work.
+test("it reads no message from a value that is not prose", () => {
+  for (const command of [
+    "mkdir -m 755 /tmp/x",
+    "install -m 0644 a b",
+    "docker run -m 512m image",
+    "chmod -m u+rwx file",
+    `git commit -m "$MESSAGE"`,
+    "git tag -m v1.2.3",
+    "ls -la",
+  ]) {
+    assert.equal(bashMessage(command), undefined, command);
+  }
+});
+
+test("it names the source of the message", () => {
+  assert.equal(bashMessageLabel(`git commit -m "we ship it"`), "the commit message");
+  assert.equal(bashMessageLabel(`slack-post -m "we ship it"`), "the message");
+});
 
 test("it reads a quoted -m message", () => {
   assert.equal(commitMessage(`git commit -m "feat: start it"`), "feat: start it");

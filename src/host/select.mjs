@@ -165,6 +165,57 @@ const LONG_FLAG =
   /--message(?:=|[ \t]+)(?:(['"])([\s\S]*?)\1|([^\s'"][^\s]*))/g;
 const HEREDOC = /-F\s*-[^\n]*\n<<['"]?(\w+)['"]?\n([\s\S]*?)\n\1/;
 
+/**
+ * True when a value reads as prose rather than as a token.
+ *
+ * `-m` carries a commit message, and it also carries a file mode. `mkdir -m
+ * 755` and `install -m 0644` must stay unread, so a value needs two words with
+ * a letter in them, and one lowercase letter. A value this test rejects stays
+ * unread, which also covers `-m "$MESSAGE"`.
+ */
+function readsAsProse(value) {
+  const words = value.trim().split(/\s+/).filter((word) => /[a-zA-Z]/.test(word));
+  return words.length >= 2 && /[a-z]/.test(value);
+}
+
+/**
+ * Every message a bash command carries, whatever the command is.
+ *
+ * `git commit` is not the only command that sends prose to a person. A harness
+ * posts a message with its own tool, and `-m` or `--message` names the text.
+ * So the reader takes any such value that reads as prose.
+ *
+ * This covers a flag only. A body in a file stays unread. So do a heredoc that
+ * writes a document, and a payload in JSON.
+ */
+export function bashMessage(command) {
+  const found = [];
+  for (const pattern of [SHORT_FLAG, LONG_FLAG]) {
+    pattern.lastIndex = 0;
+    let match = pattern.exec(command);
+    while (match) {
+      const value = match[2] ?? match[3];
+      if (value !== undefined && readsAsProse(value)) {
+        found.push(value);
+      }
+      match = pattern.exec(command);
+    }
+  }
+
+  const heredoc = command.match(HEREDOC);
+  if (heredoc) {
+    found.push(heredoc[2]);
+  }
+
+  const text = found.join("\n\n");
+  return text.trim() === "" ? undefined : text;
+}
+
+/** The name for a message, so a block reason says where the text came from. */
+export function bashMessageLabel(command) {
+  return COMMIT_VERB.test(command) ? "the commit message" : "the message";
+}
+
 // `git commit`, and also `git -C /tmp commit`. A global flag can sit between the
 // two words. A shell separator ends the search, so a later command is safe.
 const COMMIT_VERB = /git\s+(?:[^\s;|&]+\s+)*?commit\b/;

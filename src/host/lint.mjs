@@ -12,7 +12,7 @@
  */
 
 import * as engine from "../../dist/ste/ste.mjs";
-import { commitMessage, lintableText } from "./select.mjs";
+import { bashMessage, bashMessageLabel, lintableText } from "./select.mjs";
 
 /** Every rule name the roster holds. A host checks a config against this. */
 export function ruleNames() {
@@ -154,12 +154,17 @@ export function editSubject(path, texts) {
   return fileSubject(path, texts.join("\n"));
 }
 
-/** The subject for a bash command, or undefined when it commits nothing. */
+/**
+ * The subject for a bash command, or undefined when it carries no message.
+ *
+ * A commit message is one case. A harness that posts a message with its own
+ * command is another, and `-m` or `--message` names the text in both.
+ */
 export function commitSubject(command) {
-  const message = commitMessage(command);
+  const message = bashMessage(command);
   return message === undefined
     ? undefined
-    : { text: message, label: "the commit message" };
+    : { text: message, label: bashMessageLabel(command) };
 }
 
 /** The subject for assistant prose, or undefined when the text is blank. */

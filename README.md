@@ -171,7 +171,7 @@ A linter that reads broken settings and reports a pass gives a false result.
 | `.md`, `.mdx`, `.txt`, `.rst` | all prose, minus code fences and code spans |
 | `.ts`, `.js`, `.gleam`, `.go`, `.rs`, ... | `//` and `/* */` comments |
 | `.sh`, `.py`, `.rb`, `.yml`, `.toml` | `#` comments |
-| a `git commit -m` message | the message |
+| a `-m` or `--message` value in bash | the message, whatever the command |
 | the reply to you | the prose the agent sends |
 | anything else | nothing |
 
