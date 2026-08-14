@@ -149,6 +149,18 @@ the next line it writes.
 A rule set to `off` also leaves the rule list the model reads. It then wastes no
 context on a rule that nothing checks.
 
+Each severity does one job:
+
+| Setting | A write | A reply |
+| --- | --- | --- |
+| `hard` | blocks | reports |
+| `soft` | warns | reports |
+| `off` | nothing | nothing |
+
+A reply note blocks nothing, so it carries every fault at either severity. Use
+`off` to quiet a rule. A fleet that sets every rule to `soft` then blocks no
+write, and it still reads every fault.
+
 A bad name, a bad severity, or any other key stops the command with exit code 2.
 A linter that reads broken settings and reports a pass gives a false result.
 

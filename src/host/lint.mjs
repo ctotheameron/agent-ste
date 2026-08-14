@@ -35,6 +35,20 @@ export function newEngine(config = {}) {
 }
 
 /**
+ * The faults of a reply that reach the model.
+ *
+ * Every fault goes in, at either severity. A severity decides whether a write
+ * blocks, and a reply note blocks nothing, so severity has no job here.
+ *
+ * A rule set to `off` still reports nothing, which is the way to quiet one. So a
+ * fleet that sets every rule to `soft` blocks no write and still reads its
+ * faults.
+ */
+export function replyFaults(handle, subject) {
+  return check(handle, subject).violations;
+}
+
+/**
  * The rule list for a system prompt or for a session context block.
  *
  * A rule the project turned off leaves the list. Asking a model to obey a rule

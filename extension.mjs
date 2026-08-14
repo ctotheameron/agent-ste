@@ -10,6 +10,7 @@ import {
   lint,
   newEngine,
   promptText,
+  replyFaults,
   replySubject,
   ruleNames,
   summarise,
@@ -219,7 +220,10 @@ export default function steExtension(pi) {
     if (text.trim() !== "") {
       const violations = lint(compiled, text);
       report(ctx, violations);
-      pending.push(...violations.filter((v) => v.severity === "hard"));
+      // `replyReport` in the settings picks the severity this note carries. The
+      // default holds a heuristic quiet, since a soft rule such as passive
+      // voice would otherwise send a note on almost every turn.
+      pending.push(...replyFaults(compiled, replySubject(text) ?? { text }));
     }
 
     // A message that calls a tool keeps the run alive. "steer" then lands before

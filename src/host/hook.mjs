@@ -153,11 +153,12 @@ function recordReply({ module, engine }, event, state) {
     return nothing();
   }
 
-  const hard = module.check(engine, subject).hard;
+  // `replyReport` in the settings picks the severity this note carries. A fleet
+  // that sets every rule to `soft` reads nothing without it.
   writeState(event.session_id, {
     ...state,
     replied: name,
-    pending: hard,
+    pending: module.replyFaults(engine, subject),
   });
   return nothing();
 }

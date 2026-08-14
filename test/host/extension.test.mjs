@@ -180,12 +180,24 @@ test("layer 3 cannot loop, because it clears its buffer", () => {
   assert.equal(host.sent.length, 1);
 });
 
-test("layer 3 ignores a soft violation", () => {
+// A severity decides whether a write blocks. A note blocks nothing, so it
+// carries every fault. A rule set to `off` reports nothing, and that is the way
+// to quiet one. So a fleet that sets every rule to `soft` still reads its faults.
+test("layer 3 reports a soft violation too", () => {
   const host = mockPi();
   steExtension(host.pi);
   host.emit("message_end", assistantMessage("The bolt was removed."));
   host.emit("agent_settled", {});
-  assert.equal(host.sent.length, 0, "passive voice must not nag");
+  assert.equal(host.sent.length, 1);
+  assert.match(host.sent[0].message.content, /verb\/passive/);
+});
+
+test("a rule set to off reports nothing", () => {
+  const host = mockPi();
+  steExtension(host.pi);
+  host.emit("message_end", assistantMessage("Start it now."));
+  host.emit("agent_settled", {});
+  assert.equal(host.sent.length, 0, "clean prose must not nag");
 });
 
 test("layer 3 ignores a user message", () => {
