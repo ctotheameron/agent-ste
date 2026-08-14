@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.0](https://github.com/ctotheameron/agent-ste/compare/v0.4.1...v0.5.0) (2026-08-14)
+
+
+### Features
+
+* read a message from any command, not only from git commit ([7d4854b](https://github.com/ctotheameron/agent-ste/commit/7d4854bec8c9e83e6131bc80134e7b1505e08e9f))
+
+
+### Bug fixes
+
+* report every fault in a reply note, at either severity ([11133c1](https://github.com/ctotheameron/agent-ste/commit/11133c136230f36e31c4fce5f25a2f51e6533fbf))
+
+
+### Documentation
+
+* **releasing:** refresh the installed package after a publish ([a1a9209](https://github.com/ctotheameron/agent-ste/commit/a1a9209379403dedfdb68ccc3e3139f77941f50a))
+
 ## [0.4.1](https://github.com/ctotheameron/agent-ste/compare/v0.4.0...v0.4.1) (2026-08-14)
 
 
