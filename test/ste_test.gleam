@@ -377,6 +377,19 @@ pub fn flags_the_perfect_tense_test() {
   |> should.be_true
 }
 
+/// A form of `be` needs a word boundary in front of it. Without one, the `is`
+/// inside `this` matches, and `this morning` reports a progressive verb. Each
+/// word below ends in a form of `be`, and each one blocks a write.
+pub fn a_word_that_ends_in_a_verb_form_is_not_one_test() {
+  [
+    "We ship it this morning.", "His meeting starts now.",
+    "This evening we release.", "The axis rotating slowly.",
+    "The crisis ending soon.",
+  ]
+  |> list.all(fn(text) { ids_for(text) == [] })
+  |> should.be_true
+}
+
 /// An `ing` word after `be` is not always a verb. `is nothing` and `is string`
 /// name a thing, and `is missing` describes one.
 pub fn a_noun_after_be_is_not_the_progressive_test() {

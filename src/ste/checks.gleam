@@ -27,7 +27,12 @@ pub opaque type Patterns {
   Patterns(probes: List(Probe))
 }
 
-const be = "(?:am|is|are|was|were|be|been|being)"
+/// A form of `be`, at the start of a word.
+///
+/// The boundary carries the rule. Without it, the `is` inside `this` matches,
+/// and `this morning` reports a progressive verb. `his meeting` and `axis
+/// rotating` fall the same way, and each one blocks a write.
+const be = "\\b(?:am|is|are|was|were|be|been|being)"
 
 /// An irregular past participle does not end in "ed", so list the common ones.
 /// Adapted from Ryuketsukami/ste-plain-writing (MIT).
@@ -69,7 +74,7 @@ fn table() -> List(Spec) {
       "Use a simple tense. Do not use the progressive.",
     ),
     Check(
-      [participle("(?:have|has|had)")],
+      [participle("\\b(?:have|has|had)")],
       rule.Perfect,
       "Use the simple past. Do not use the perfect tense.",
     ),
