@@ -1,157 +1,23 @@
 /**
- * Decides which text in a file the linter may see.
+ * Reads a bash command, and routes a file to the rules that may see it.
  *
- * Every function here returns a string of the SAME line count as its input, and
- * blanks the rest. The Gleam engine then reports a line number that matches the
- * real file, with no offset arithmetic in the host.
+ * The routing itself lives in Gleam, in src/ste/select.gleam. A rule about
+ * which text counts is a rule, so it sits beside the other rules. This file
+ * keeps the shape a host expects. It also reads a bash command, which still
+ * needs a regexp here.
  */
 
-const PROSE_EXTENSIONS = new Set([".md", ".mdx", ".markdown", ".txt", ".rst"]);
-
-const LINE_COMMENT = {
-  ".ts": "//",
-  ".tsx": "//",
-  ".js": "//",
-  ".mjs": "//",
-  ".cjs": "//",
-  ".jsx": "//",
-  ".gleam": "//",
-  ".go": "//",
-  ".rs": "//",
-  ".swift": "//",
-  ".kt": "//",
-  ".java": "//",
-  ".c": "//",
-  ".h": "//",
-  ".cpp": "//",
-  ".sh": "#",
-  ".bash": "#",
-  ".zsh": "#",
-  ".py": "#",
-  ".rb": "#",
-  ".yml": "#",
-  ".yaml": "#",
-  ".toml": "#",
-  ".just": "#",
-};
-
-function extensionOf(path) {
-  const base = path.slice(path.lastIndexOf("/") + 1);
-  const dot = base.lastIndexOf(".");
-  return dot <= 0 ? "" : base.slice(dot).toLowerCase();
-}
-
-function blank(text) {
-  return " ".repeat(text.length);
-}
+import * as engine from "../../dist/ste/ste/select.mjs";
 
 /**
- * Finds the column of a real comment marker, or -1 when the line holds none.
+ * The lintable view of a file, or undefined when the file holds no prose.
  *
- * `https://example.com` holds `//` and starts no comment. A colon in front of
- * the marker names a scheme, so the search moves past it and tries again.
- */
-function markerColumn(line, marker) {
-  let at = line.indexOf(marker);
-  while (at > 0 && line[at - 1] === ":") {
-    at = line.indexOf(marker, at + marker.length);
-  }
-  return at;
-}
-
-/** The count of quote characters that no backslash escapes. */
-function quoteCount(text, pattern) {
-  return (text.match(pattern) ?? []).length;
-}
-
-/**
- * Keeps only `//` or `#` comment bodies. Everything else becomes spaces.
- *
- * A template literal spans lines, and its text often holds a URL or a word the
- * rules ban. So this tracks an open backtick across lines and blanks the text
- * inside it. A quote on the same line still uses a count, which is crude, and
- * which needs no parser.
- */
-function commentsOnly(content, marker) {
-  const tracksTemplate = marker === "//";
-  let inTemplate = false;
-
-  return content
-    .split("\n")
-    .map((line) => {
-      const opened = inTemplate;
-      if (tracksTemplate && quoteCount(line, /(?<!\\)`/g) % 2 !== 0) {
-        inTemplate = !inTemplate;
-      }
-      if (opened) {
-        return blank(line);
-      }
-
-      const at = markerColumn(line, marker);
-      if (at === -1) {
-        return blank(line);
-      }
-      // A marker inside a string literal is not a comment. Counting unescaped
-      // quotes before it is crude but it avoids a full parser.
-      const before = line.slice(0, at);
-      if (quoteCount(before, /(?<!\\)["'`]/g) % 2 !== 0) {
-        return blank(line);
-      }
-      return blank(before) + " ".repeat(marker.length) + line.slice(at + marker.length);
-    })
-    .join("\n");
-}
-
-/** Keeps only the inside of `/* ... *\/` blocks. */
-function blockCommentsOnly(content) {
-  const lines = content.split("\n");
-  const kept = [];
-  let inside = false;
-  // Build these markers by concatenation, so no bare literal trips this scan.
-  const open = "/" + "*";
-  const close = "*" + "/";
-  for (const line of lines) {
-    const opens = line.includes(open);
-    const closes = line.includes(close);
-    if (inside || opens) {
-      kept.push(line.replace(/\/\*|\*\/|^\s*\*/g, (m) => " ".repeat(m.length)));
-      inside = opens ? !closes : !closes;
-    } else {
-      kept.push(blank(line));
-    }
-  }
-  return kept.join("\n");
-}
-
-function mergeMasks(left, right) {
-  const a = left.split("\n");
-  const b = right.split("\n");
-  return a
-    .map((line, index) => {
-      const other = b[index] ?? "";
-      return [...line]
-        .map((character, column) =>
-          character !== " " ? character : (other[column] ?? " "),
-        )
-        .join("");
-    })
-    .join("\n");
-}
-
-/**
- * Returns the lintable view of a file, or undefined when the file has none.
+ * Gleam answers with an empty string for a file it cannot read. A host tells
+ * that apart from an empty file, so the two answers stay separate here.
  */
 export function lintableText(path, content) {
-  const extension = extensionOf(path);
-  if (PROSE_EXTENSIONS.has(extension)) {
-    return content;
-  }
-  const marker = LINE_COMMENT[extension];
-  if (!marker) {
-    return undefined;
-  }
-  const line = commentsOnly(content, marker);
-  return marker === "//" ? mergeMasks(line, blockCommentsOnly(content)) : line;
+  const text = engine.lintable_text(path, content);
+  return text === "" ? undefined : text;
 }
 
 // Every way a message reaches `git commit`, except a file path. A quoted value

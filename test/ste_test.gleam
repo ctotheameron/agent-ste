@@ -4,6 +4,7 @@ import gleeunit
 import gleeunit/should
 import ste
 import ste/rule.{type Violation}
+import ste/select
 import ste/source
 
 pub fn main() {
@@ -579,4 +580,84 @@ pub fn the_prompt_names_every_rule_test() {
   |> list.map(rule.to_string)
   |> list.filter(fn(id) { !string.contains(prompt, id) })
   |> should.equal([])
+}
+
+// --- which text the linter may read ---
+
+pub fn a_prose_file_reads_whole_test() {
+  select.lintable_text("notes.md", "We must utilize it.")
+  |> should.equal("We must utilize it.")
+}
+
+pub fn an_unknown_file_reads_as_nothing_test() {
+  select.lintable_text("data.bin", "We must utilize it.")
+  |> should.equal("")
+}
+
+/// A name that opens with a dot carries no extension, so the file stays shut.
+pub fn a_dotfile_reads_as_nothing_test() {
+  select.lintable_text(".bashrc", "# We must utilize it.")
+  |> should.equal("")
+}
+
+/// A comment keeps its column, and the code around it blanks.
+pub fn a_slash_comment_reads_and_the_code_blanks_test() {
+  select.lintable_text("a.ts", "const x = 1; // Utilize it.")
+  |> should.equal("                Utilize it.")
+}
+
+pub fn a_hash_comment_reads_test() {
+  select.lintable_text("a.py", "x = 1  # Utilize it.")
+  |> should.equal("         Utilize it.")
+}
+
+/// A colon in front of the marker names a scheme, so a URL starts no comment.
+pub fn a_url_in_a_string_is_not_a_comment_test() {
+  select.lintable_text("a.ts", "const u = \"https://x.io/utilize\";")
+  |> string.trim
+  |> should.equal("")
+}
+
+/// A quote count finds a marker inside a string literal.
+pub fn a_marker_inside_a_string_is_not_a_comment_test() {
+  select.lintable_text("a.py", "x = \"# utilize it\"")
+  |> string.trim
+  |> should.equal("")
+}
+
+/// A template literal spans lines, and its text is data rather than prose.
+pub fn a_template_literal_reads_as_nothing_test() {
+  select.lintable_text(
+    "a.ts",
+    "const q = `\n  See https://x.io/utilize now.\n`;",
+  )
+  |> string.trim
+  |> should.equal("")
+}
+
+/// A block comment reads, and its markers blank.
+pub fn a_block_comment_reads_test() {
+  select.lintable_text("a.ts", "/** Utilize it. */")
+  |> string.trim
+  |> should.equal("Utilize it.")
+}
+
+/// Every line keeps its number, so a report points at the real line.
+pub fn a_mask_keeps_every_line_test() {
+  let source = "const a = 1;\n// Utilize it.\nconst b = 2;"
+  select.lintable_text("a.ts", source)
+  |> string.split(on: "\n")
+  |> list.length
+  |> should.equal(3)
+}
+
+/// A `/*` inside a string opens no block comment.
+///
+/// A path such as `".git/*"` sits in real source. The old reader took it as a
+/// comment. It then read every line after it as prose, and it reported 247
+/// faults on one file of code.
+pub fn a_block_marker_inside_a_string_is_not_a_comment_test() {
+  select.lintable_text("a.ts", "const ignore = \".git/*\";\nconst utilize = 1;")
+  |> string.trim
+  |> should.equal("")
 }
