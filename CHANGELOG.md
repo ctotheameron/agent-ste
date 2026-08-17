@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1](https://github.com/ctotheameron/agent-ste/compare/v0.5.0...v0.5.1) (2026-08-17)
+
+
+### Bug fixes
+
+* **verb:** a word that ends in a verb form is not one ([212a222](https://github.com/ctotheameron/agent-ste/commit/212a222533945a157aec3d037dac19228906a28d))
+
+
+### Documentation
+
+* describe both hosts in the package description ([07962da](https://github.com/ctotheameron/agent-ste/commit/07962da5709e41c7b71d3dbe1669a68c1f819267))
+
 ## [0.5.0](https://github.com/ctotheameron/agent-ste/compare/v0.4.1...v0.5.0) (2026-08-14)
 
 
