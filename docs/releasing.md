@@ -27,12 +27,12 @@ A commit with another prefix, such as `refactor:` or `ci:`, changes no version.
 It waits in the release pull request for the next `feat:` or `fix:`.
 
 Step 7 matters more than it looks. A host loads the rule engine one time, at the
-start of a session. So an older session keeps the old rules until it ends, and
-the linter can miss a fault it now knows about.
+start of a session. So an older session keeps the old rules until it ends. The
+linter can then miss a fault it now knows about.
 
 This repository holds its own rules, so run step 7 here first. Read the pi
 package list with `pi list`. A checkout in that list loads the working tree
-rather than the release, which is useful for a test and wrong for daily work.
+rather than the release. That helps a test, and it is wrong for daily work.
 
 ## Why release-please
 

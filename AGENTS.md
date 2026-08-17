@@ -22,7 +22,7 @@ It owns no rules.
 | File | Job |
 | --- | --- |
 | `src/host/lint.mjs` | the one rule layer every host calls |
-| `src/host/select.mjs` | which text the linter may read, per file type |
+| `src/host/select.mjs` | reads a message out of a bash command |
 | `src/host/config.mjs` | reads `.ste.json`, and checks it against the roster |
 | `src/host/hook.mjs` | maps a Claude Code event to a Claude Code result |
 | `src/host/session.mjs` | the per-session mode for Claude Code |
@@ -73,6 +73,9 @@ A rule needs two parts, and both live in Gleam:
    its name, its severity and its prompt line. That line reaches the model
    through the system prompt.
 2. A check that emits the same `rule.Id`.
+
+`src/ste/select.gleam` decides which text the linter may read, per file type.
+That is a rule about text, so it lives in Gleam beside the other rules.
 
 The test `every_declared_rule_is_implemented_test` compares the roster against
 the ids the engine emits, in both directions. This stops the prompt from asking
