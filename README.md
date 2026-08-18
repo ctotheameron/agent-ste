@@ -1,6 +1,6 @@
 # agent-ste
 
-Your coding agent writes clear English, or it does not write at all.
+Your coding agent writes slop. This stops it at the keystroke.
 
 `agent-ste` holds a coding agent to ASD-STE100 Simplified Technical English.
 That is the writing standard the aerospace industry uses for a maintenance
@@ -13,7 +13,7 @@ a command.
 ## Why
 
 A coding agent writes prose all day. It writes your commit messages, your code
-comments, your README and your reply. Left alone, it writes like this:
+comments, your README and your reply. Left alone, it writes slop:
 
 ```md
 It is important to note that this module leverages a robust caching strategy

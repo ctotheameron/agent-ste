@@ -1,7 +1,7 @@
 {
   "name": "agent-ste",
   "version": "0.5.1",
-  "description": "Simplified Technical English (ASD-STE100) enforcement for a coding agent. It gates a write, a commit message and a reply in pi and in Claude Code.",
+  "description": "Removes AI slop from what a coding agent writes. It blocks a hedge, a marketing word and a long sentence in a file, a commit message or a reply. The rules come from ASD-STE100.",
   "keywords": [
     "pi",
     "pi-package",
@@ -20,7 +20,10 @@
     "technical-english",
     "plain-english",
     "prose-lint",
-    "commit-message"
+    "commit-message",
+    "ai-slop",
+    "slop",
+    "ai-writing"
   ],
   "homepage": "https://github.com/ctotheameron/agent-ste#readme",
   "bugs": {
