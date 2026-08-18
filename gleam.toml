@@ -1,7 +1,7 @@
 name = "ste"
 # release-please rewrites the version on the next line. The annotation marks
 # the line, and scripts/check-version.sh proves that package.json agrees.
-version = "0.5.1" # x-release-please-version
+version = "0.5.2" # x-release-please-version
 target = "javascript"
 
 # Fill out these fields if you intend to generate HTML documentation or publish

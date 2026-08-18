@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/ctotheameron/agent-ste/compare/v0.5.1...v0.5.2) (2026-08-17)
+
+
+### Code refactoring
+
+* **select:** move file routing into Gleam, and fix two readers ([#10](https://github.com/ctotheameron/agent-ste/issues/10)) ([fad9bee](https://github.com/ctotheameron/agent-ste/commit/fad9beef7b58aeef5f5c4143e64ec149a4d11ca1))
+
 ## [0.5.1](https://github.com/ctotheameron/agent-ste/compare/v0.5.0...v0.5.1) (2026-08-17)
 
 
