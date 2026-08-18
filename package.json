@@ -15,7 +15,12 @@
     "lint",
     "linter",
     "prose",
-    "gleam"
+    "gleam",
+    "controlled-language",
+    "technical-english",
+    "plain-english",
+    "prose-lint",
+    "commit-message"
   ],
   "homepage": "https://github.com/ctotheameron/agent-ste#readme",
   "bugs": {
