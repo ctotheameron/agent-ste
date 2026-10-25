@@ -1,5 +1,7 @@
 // Every rule call goes through src/host/lint.mjs. The hook in bin/ste-hook.mjs
 // calls the same module, so the two hosts cannot drift apart.
+import { getMarkdownTheme } from "@earendil-works/pi-coding-agent";
+import { Container, Markdown, Text } from "@earendil-works/pi-tui";
 import { loadConfig } from "./src/host/config.mjs";
 import {
   check,
@@ -136,6 +138,22 @@ export default function steExtension(pi) {
     },
     async execute(_id, params) {
       return { content: [{ type: "text", text: params.text ?? "" }] };
+    },
+    renderShell: "self",
+    renderCall() {
+      return new Container();
+    },
+    renderResult(result, { isPartial }, theme, context) {
+      if (isPartial) return new Container();
+
+      const text = result.content
+        .filter((part) => part.type === "text")
+        .map((part) => part.text)
+        .join("\n");
+
+      return context.isError
+        ? new Text(theme.fg("error", text), 1, 0)
+        : new Markdown(text, 1, 0, getMarkdownTheme());
     },
   });
 
