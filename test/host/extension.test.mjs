@@ -23,8 +23,13 @@ function mockPi() {
       notify: () => {},
     },
   };
+  const event = {
+    systemPrompt: "BASE",
+    systemPromptOptions: { sections: { other: "Keep this instruction." } },
+  };
   const emit = (event, payload) => handlers.get(event)?.(payload, ctx);
-  return { pi, ctx, emit, sent, tools, commands, status, handlers };
+  const prompt = () => emit("before_agent_start", event);
+  return { pi, ctx, emit, sent, tools, commands, status, handlers, event, prompt };
 }
 
 function assistantMessage(text) {
@@ -57,15 +62,26 @@ test("registers the toggle and the self-check tool", () => {
   );
 });
 
-test("layer 1 appends the rules to the system prompt", () => {
+test("layer 1 adds a named section without replacing the system prompt", () => {
   const host = mockPi();
   steExtension(host.pi);
-  const result = host.handlers.get("before_agent_start")({
-    systemPrompt: "BASE",
-  });
-  assert.ok(result.systemPrompt.startsWith("BASE"));
-  assert.ok(result.systemPrompt.includes("Simplified Technical English"));
-  assert.ok(result.systemPrompt.includes("dictionary/not-approved-word"));
+  assert.equal(host.prompt(), undefined);
+  assert.equal(host.event.systemPrompt, "BASE");
+  const { sections } = host.event.systemPromptOptions;
+  assert.equal(sections.other, "Keep this instruction.");
+  assert.match(sections.ste, /Simplified Technical English/);
+  assert.match(sections.ste, /dictionary\/not-approved-word/);
+  assert.doesNotMatch(sections.ste, /strict mode/);
+});
+
+test("layer 1 keeps one copy of the rules across turns", () => {
+  const host = mockPi();
+  steExtension(host.pi);
+  host.prompt();
+  const first = host.event.systemPromptOptions.sections.ste;
+  host.prompt();
+  assert.equal(host.event.systemPromptOptions.sections.ste, first);
+  assert.deepEqual(Object.keys(host.event.systemPromptOptions.sections), ["other", "ste"]);
 });
 
 test("layer 2 blocks a write that breaks a hard rule", () => {
@@ -249,15 +265,18 @@ test("layer 3 caps the notes for one run", () => {
   assert.equal(host.sent.length, 5, "the cap resets, and the tail flushes");
 });
 
-test("strict mode blocks a reply through the say tool", () => {
+test("strict mode blocks progress and final replies that break a hard rule", () => {
   const host = mockPi();
   steExtension(host.pi);
-  const result = host.handlers.get("tool_call")(
-    { toolName: "say", input: { text: "We will initiate the rollout." } },
-    host.ctx,
-  );
-  assert.equal(result.block, true);
-  assert.match(result.reason, /in the reply/);
+  for (const final of [undefined, false, true]) {
+    const result = host.handlers.get("tool_call")(
+      { toolName: "say", input: { text: "We will initiate the rollout.", final } },
+      host.ctx,
+    );
+    assert.equal(result.block, true);
+    assert.match(result.reason, /in the reply/);
+    assert.notEqual(result.terminate, true);
+  }
 });
 
 test("strict mode passes a clean reply, and the text is unchanged", async () => {
@@ -274,16 +293,58 @@ test("strict mode passes a clean reply, and the text is unchanged", async () => 
 test("the strict note reaches the model only after /ste strict", async () => {
   const host = mockPi();
   steExtension(host.pi);
-  const prompt = () => host.handlers.get("before_agent_start")({ systemPrompt: "BASE" });
-  assert.ok(!prompt().systemPrompt.includes("strict mode"));
+  const sections = host.event.systemPromptOptions.sections;
+  host.prompt();
+  assert.doesNotMatch(sections.ste, /strict mode/);
 
   const command = host.commands.find((c) => c.name === "ste").options;
   await command.handler("strict", host.ctx);
-  assert.ok(prompt().systemPrompt.includes("`say` tool"));
+  host.prompt();
+  assert.match(sections.ste, /`say` tool/);
+  assert.match(sections.ste, /Write no prose outside that tool/);
 
   await command.handler("strict off", host.ctx);
-  assert.ok(!prompt().systemPrompt.includes("strict mode"));
+  host.prompt();
+  assert.doesNotMatch(sections.ste, /strict mode/);
+  assert.match(sections.ste, /Simplified Technical English/);
 
   await command.handler("off", host.ctx);
-  assert.equal(prompt(), undefined, "off disables every layer");
+  assert.equal(host.prompt(), undefined);
+  assert.deepEqual(sections, { other: "Keep this instruction." });
+
+  await command.handler("on", host.ctx);
+  host.prompt();
+  assert.match(sections.ste, /Simplified Technical English/);
+  assert.doesNotMatch(sections.ste, /strict mode/);
+  assert.equal(sections.other, "Keep this instruction.");
+});
+
+test("say ends the turn only for an accepted final reply", async () => {
+  const host = mockPi();
+  steExtension(host.pi);
+  const say = host.tools.find((tool) => tool.name === "say");
+  assert.equal(say.parameters.properties.final.type, "boolean");
+  assert.equal(say.parameters.required.includes("final"), false);
+  assert.match(say.description, /call this tool alone with final: true/);
+  assert.match(say.description, /Do not repeat.*assistant text/);
+
+  const input = { text: "The check passed.", final: true };
+  assert.equal(host.emit("tool_call", { toolName: "say", input }), undefined);
+  const output = await say.execute("1", input);
+  assert.equal(output.terminate, true);
+  assert.deepEqual(output.content, [{ type: "text", text: input.text }]);
+});
+
+test("say keeps progress replies non-final by default", async () => {
+  const host = mockPi();
+  steExtension(host.pi);
+  const say = host.tools.find((tool) => tool.name === "say");
+  for (const input of [
+    { text: "I will check the text." },
+    { text: "I will check the text.", final: false },
+  ]) {
+    const output = await say.execute("1", input);
+    assert.notEqual(output.terminate, true);
+    assert.deepEqual(output.content, [{ type: "text", text: input.text }]);
+  }
 });

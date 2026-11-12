@@ -147,9 +147,25 @@ test("say rendering leaves the model-facing result unchanged", async () => {
   const input = { text: "The **check passed**." };
   assert.equal(gate({ toolName: "say", input }, context), undefined);
   const result = await say.execute("1", input);
-  const expected = { content: [{ type: "text", text: input.text }] };
+  const expected = {
+    content: [{ type: "text", text: input.text }],
+    terminate: false,
+  };
   outputOf(viewFor(say, input, result));
   assert.deepEqual(result, expected);
+});
+
+test("say rendering keeps a final reply and its turn-ending flag", async () => {
+  const { say, gate, context } = host();
+  const input = { text: "The **check passed**.", final: true };
+  assert.equal(gate({ toolName: "say", input }, context), undefined);
+  const result = await say.execute("1", input);
+  const output = outputOf(viewFor(say, input, result));
+  assert.equal(output.split("The check passed.").length - 1, 1);
+  assert.deepEqual(result, {
+    content: [{ type: "text", text: input.text }],
+    terminate: true,
+  });
 });
 
 test("say rendering does not change the lint tool display", () => {

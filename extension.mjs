@@ -130,14 +130,26 @@ export default function steExtension(pi) {
     label: "Say",
     description:
       "Send prose to the user. In STE strict mode, use this for every reply. " +
-      "A hard Simplified Technical English violation blocks the call.",
+      "A hard Simplified Technical English violation blocks the call. " +
+      "For a final answer, call this tool alone with final: true. " +
+      "Omit final for progress messages. " +
+      "Do not repeat this visible reply in assistant text.",
     parameters: {
       type: "object",
-      properties: { text: { type: "string", description: "The reply text" } },
+      properties: {
+        text: { type: "string", description: "The reply text" },
+        final: {
+          type: "boolean",
+          description: "End the turn after this final reply. Omit for progress messages.",
+        },
+      },
       required: ["text"],
     },
     async execute(_id, params) {
-      return { content: [{ type: "text", text: params.text ?? "" }] };
+      return {
+        content: [{ type: "text", text: params.text ?? "" }],
+        terminate: params.final === true,
+      };
     },
     renderShell: "self",
     renderCall() {
@@ -159,14 +171,16 @@ export default function steExtension(pi) {
 
   // Layer 1: the rules reach the model, built from the same table the linter uses.
   pi.on("before_agent_start", (event) => {
+    const sections = event.systemPromptOptions.sections;
     if (!enabled) {
+      delete sections.ste;
       return undefined;
     }
-    const parts = [event.systemPrompt, promptText(compiled)];
+    const parts = [promptText(compiled)];
     if (strict) {
       parts.push(STRICT_NOTE);
     }
-    return { systemPrompt: parts.join("\n\n") };
+    sections.ste = parts.join("\n\n");
   });
 
   // Layer 2: a hard violation blocks the write, and the reason tells the model

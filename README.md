@@ -224,6 +224,13 @@ document review, and leave it off for normal work.
 In pi, the `say` tool hides its draft arguments. It shows the accepted reply
 once as Markdown. A blocked call shows the STE errors.
 
+For a final answer, the agent calls `say` alone with `final: true`.
+That ends the turn without another model reply.
+Progress messages omit `final`, so later tool calls can still run.
+
+The extension adds STE rules through a named system prompt section.
+This also lets `pi-claude-bridge` send the rules to Claude Code.
+
 The agent can also check a draft itself, with the `ste_lint` tool.
 
 ## One rule it skips
