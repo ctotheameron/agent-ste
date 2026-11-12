@@ -304,6 +304,27 @@ pub fn a_digit_before_a_capital_ends_a_sentence_test() {
   |> should.equal([])
 }
 
+/// A number is no abbreviation, so `2. 3 tests` holds two sentences. A join
+/// made one sentence of 25 words from them.
+pub fn a_number_before_a_digit_ends_a_sentence_test() {
+  ids_for(
+    "The exit code is 2. 3 tests fail on the second run of the whole suite"
+    <> " after this change today because the cache is cold.",
+  )
+  |> should.equal([])
+}
+
+/// A mask leaves a bare period after an inline span. That period ends a
+/// sentence, even when the next sentence opens with a lowercase name.
+pub fn a_period_after_inline_code_ends_a_sentence_test() {
+  ids_for(
+    "Keep the publish step in `release.yml`. npm reads the version from the"
+    <> " tag and writes the package to the registry for every user.",
+  )
+  |> list.contains("length/sentence")
+  |> should.be_false
+}
+
 /// The join must not swallow a real sentence boundary. A capital opens one.
 pub fn a_capital_still_opens_a_sentence_test() {
   ids_for("One. Two. Three. Four. Five. Six. Seven.")

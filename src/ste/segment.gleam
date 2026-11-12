@@ -182,11 +182,11 @@ type Gapped =
 
 /// Joins a fragment to the sentence before it.
 ///
-/// A period ends an abbreviation as well as a sentence. `e.g.`, `Fig.` and a
-/// list marker such as `1.` all hold one, so the pattern splits where a reader
-/// does not. Real prose opens a sentence with a capital. So a fragment that
-/// opens with a lowercase letter or a digit continues the one before it. A
-/// title and an initial hold a sentence open across a capital name.
+/// A period ends an abbreviation as well as a sentence. `e.g.` and `Fig.` both
+/// hold one, so the pattern splits where a reader does not. Real prose opens a
+/// sentence with a capital. So a fragment that opens with a lowercase letter or
+/// a digit continues the one before it. A title and an initial hold a sentence
+/// open across a capital name.
 fn join_fragments(sentences: List(Gapped)) -> List(Sentence) {
   sentences
   |> list.fold(from: [], with: absorb)
@@ -220,10 +220,15 @@ fn continues(previous: Sentence, next: Sentence) -> Bool {
   holds_open(word) || { is_abbreviation(word) && opens_small(next.text) }
 }
 
-/// Four characters at most, and a period at the end. `e.g.`, `Fig.` and the
-/// `1.` of a list marker all fit. `mode.` and `point.` do not.
+/// Four characters at most, a letter first, and a period at the end. `e.g.`
+/// and `Fig.` fit. `mode.` and `point.` do not.
+///
+/// A number does not fit, so `exit code 2. 3 tests fail` holds two sentences.
+/// The period after a masked inline span does not fit either.
 fn is_abbreviation(word: String) -> Bool {
-  string.length(word) <= 4 && string.ends_with(word, ".")
+  string.length(word) <= 4
+  && string.ends_with(word, ".")
+  && opens_with_letter(word)
 }
 
 fn merge(first: Sentence, second: Sentence) -> Sentence {
