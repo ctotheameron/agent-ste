@@ -221,6 +221,9 @@ the bad text. Claude Code streams a reply before any hook runs. A block there
 asks for a rewrite, and you read the first answer anyway. Turn strict on for a
 document review, and leave it off for normal work.
 
+In pi, the `say` tool hides its draft arguments. It shows the accepted reply
+once as Markdown. A blocked call shows the STE errors.
+
 The agent can also check a draft itself, with the `ste_lint` tool.
 
 ## One rule it skips
@@ -237,6 +240,18 @@ process. There is no daemon, no service and no network call.
 
 `AGENTS.md` holds the design, the measurements and the rules for a change.
 `docs/releasing.md` holds the release flow.
+
+## Development
+
+The build and engine tests need Gleam. CI uses Gleam 1.18.0 and Node.js 24.
+
+Install the Node development packages before the host tests:
+
+```sh
+npm ci --ignore-scripts
+./scripts/build-dist.sh
+npm test
+```
 
 ## Licence
 

@@ -47,6 +47,17 @@ test("the pi entry point exists", () => {
   }
 });
 
+test("Pi UI packages are optional peers, not runtime dependencies", () => {
+  for (const name of [
+    "@earendil-works/pi-coding-agent",
+    "@earendil-works/pi-tui",
+  ]) {
+    assert.equal(manifest.peerDependencies[name], "*");
+    assert.equal(manifest.peerDependenciesMeta[name].optional, true);
+    assert.equal(manifest.dependencies?.[name], undefined);
+  }
+});
+
 const hooks = JSON.parse(readFileSync(join(root, "hooks/hooks.json"), "utf8"));
 
 // A matcher such as `Write|Edit` fires for the first name only, and it drops

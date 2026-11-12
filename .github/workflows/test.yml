@@ -28,6 +28,7 @@ jobs:
         with:
           node-version: "24"
           package-manager-cache: false
+      - run: npm ci --ignore-scripts
 
       # A release ships one version. This check fails when any manifest
       # disagrees.
