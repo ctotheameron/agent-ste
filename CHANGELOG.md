@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.3](https://github.com/ctotheameron/agent-ste/compare/v0.5.2...v0.5.3) (2026-11-12)
+
+
+### Bug fixes
+
+* render say replies once as Markdown ([#16](https://github.com/ctotheameron/agent-ste/issues/16)) ([191016d](https://github.com/ctotheameron/agent-ste/commit/191016d736557377ea47340c51613b3cb8e872fa))
+* **segment:** do not interpret "2." as an abbreviation ([#22](https://github.com/ctotheameron/agent-ste/issues/22)) ([102e92b](https://github.com/ctotheameron/agent-ste/commit/102e92bae8a588cd0b732e9b342810e6822fafb5))
+
 ## [0.5.2](https://github.com/ctotheameron/agent-ste/compare/v0.5.1...v0.5.2) (2026-08-17)
 
 
