@@ -132,7 +132,6 @@ export default function steExtension(pi) {
       "Send prose to the user. In STE strict mode, use this for every reply. " +
       "A hard Simplified Technical English violation blocks the call. " +
       "For a final answer, call this tool alone with final: true. " +
-      "Omit final for progress messages. " +
       "Do not repeat this visible reply in assistant text.",
     parameters: {
       type: "object",
