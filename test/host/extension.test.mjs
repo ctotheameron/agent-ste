@@ -20,7 +20,7 @@ function mockPi() {
       setStatus: (key, value) => {
         status[key] = value;
       },
-      notify: () => {},
+      notify: () => { },
     },
   };
   const event = {
@@ -73,6 +73,41 @@ test("layer 1 adds a named section without replacing the system prompt", () => {
   assert.match(sections.ste, /dictionary\/not-approved-word/);
   assert.doesNotMatch(sections.ste, /strict mode/);
 });
+
+for (const [label, options] of [
+  ["sections are absent", {}],
+  ["systemPromptOptions is absent", undefined],
+]) {
+  test(`layer 1 appends the rules when ${label}`, () => {
+    const host = mockPi();
+    steExtension(host.pi);
+    host.event.systemPromptOptions = options;
+
+    const prompt = host.prompt().systemPrompt;
+    assert.ok(prompt.startsWith("BASE\n\n"));
+    assert.match(prompt, /Simplified Technical English/);
+    assert.doesNotMatch(prompt, /strict mode/);
+    assert.equal(host.event.systemPrompt, "BASE");
+  });
+
+  test(`layer 1 applies mode changes when ${label}`, async () => {
+    const host = mockPi();
+    steExtension(host.pi);
+    host.event.systemPromptOptions = options;
+
+    const normal = host.prompt().systemPrompt;
+    const command = host.commands.find((c) => c.name === "ste").options;
+
+    await command.handler("strict", host.ctx);
+    assert.match(host.prompt().systemPrompt, /Write no prose outside that tool/);
+
+    await command.handler("strict off", host.ctx);
+    assert.equal(host.prompt().systemPrompt, normal);
+
+    await command.handler("off", host.ctx);
+    assert.equal(host.prompt(), undefined);
+  });
+}
 
 test("layer 1 keeps one copy of the rules across turns", () => {
   const host = mockPi();

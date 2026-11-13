@@ -171,16 +171,25 @@ export default function steExtension(pi) {
 
   // Layer 1: the rules reach the model, built from the same table the linter uses.
   pi.on("before_agent_start", (event) => {
-    const sections = event.systemPromptOptions.sections;
+    // Pi before 0.86.0 has no prompt sections.
+    const sections = event.systemPromptOptions?.sections;
     if (!enabled) {
-      delete sections.ste;
+      if (sections) {
+        delete sections.ste;
+      }
       return undefined;
     }
     const parts = [promptText(compiled)];
     if (strict) {
       parts.push(STRICT_NOTE);
     }
-    sections.ste = parts.join("\n\n");
+    const text = parts.join("\n\n");
+    if (sections) {
+      sections.ste = text;
+      return undefined;
+    }
+    // An older pi gets the rules at the end of the prompt.
+    return { systemPrompt: `${event.systemPrompt}\n\n${text}` };
   });
 
   // Layer 2: a hard violation blocks the write, and the reason tells the model
