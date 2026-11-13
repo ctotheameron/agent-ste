@@ -174,9 +174,6 @@ export default function steExtension(pi) {
     // Pi before 0.86.0 has no prompt sections.
     const sections = event.systemPromptOptions?.sections;
     if (!enabled) {
-      if (sections) {
-        delete sections.ste;
-      }
       return undefined;
     }
     const parts = [promptText(compiled)];

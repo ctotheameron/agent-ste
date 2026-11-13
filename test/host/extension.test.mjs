@@ -3,7 +3,7 @@ import { test } from "node:test";
 import steExtension from "../../extension.mjs";
 
 /** A minimal stand-in for ExtensionAPI, enough to drive the hooks. */
-function mockPi() {
+function mockPi(options = () => ({ sections: { other: "Keep this instruction." } })) {
   const handlers = new Map();
   const sent = [];
   const tools = [];
@@ -23,12 +23,13 @@ function mockPi() {
       notify: () => { },
     },
   };
-  const event = {
-    systemPrompt: "BASE",
-    systemPromptOptions: { sections: { other: "Keep this instruction." } },
-  };
+  const event = { systemPrompt: "BASE" };
   const emit = (event, payload) => handlers.get(event)?.(payload, ctx);
-  const prompt = () => emit("before_agent_start", event);
+  // Pi builds the options again for each run, so no section carries over.
+  const prompt = () => {
+    event.systemPromptOptions = options();
+    return emit("before_agent_start", event);
+  };
   return { pi, ctx, emit, sent, tools, commands, status, handlers, event, prompt };
 }
 
@@ -79,9 +80,8 @@ for (const [label, options] of [
   ["systemPromptOptions is absent", undefined],
 ]) {
   test(`layer 1 appends the rules when ${label}`, () => {
-    const host = mockPi();
+    const host = mockPi(() => options);
     steExtension(host.pi);
-    host.event.systemPromptOptions = options;
 
     const prompt = host.prompt().systemPrompt;
     assert.ok(prompt.startsWith("BASE\n\n"));
@@ -91,9 +91,8 @@ for (const [label, options] of [
   });
 
   test(`layer 1 applies mode changes when ${label}`, async () => {
-    const host = mockPi();
+    const host = mockPi(() => options);
     steExtension(host.pi);
-    host.event.systemPromptOptions = options;
 
     const normal = host.prompt().systemPrompt;
     const command = host.commands.find((c) => c.name === "ste").options;
@@ -108,16 +107,6 @@ for (const [label, options] of [
     assert.equal(host.prompt(), undefined);
   });
 }
-
-test("layer 1 keeps one copy of the rules across turns", () => {
-  const host = mockPi();
-  steExtension(host.pi);
-  host.prompt();
-  const first = host.event.systemPromptOptions.sections.ste;
-  host.prompt();
-  assert.equal(host.event.systemPromptOptions.sections.ste, first);
-  assert.deepEqual(Object.keys(host.event.systemPromptOptions.sections), ["other", "ste"]);
-});
 
 test("layer 2 blocks a write that breaks a hard rule", () => {
   const host = mockPi();
@@ -328,30 +317,30 @@ test("strict mode passes a clean reply, and the text is unchanged", async () => 
 test("the strict note reaches the model only after /ste strict", async () => {
   const host = mockPi();
   steExtension(host.pi);
-  const sections = host.event.systemPromptOptions.sections;
+  const sections = () => host.event.systemPromptOptions.sections;
   host.prompt();
-  assert.doesNotMatch(sections.ste, /strict mode/);
+  assert.doesNotMatch(sections().ste, /strict mode/);
 
   const command = host.commands.find((c) => c.name === "ste").options;
   await command.handler("strict", host.ctx);
   host.prompt();
-  assert.match(sections.ste, /`say` tool/);
-  assert.match(sections.ste, /Write no prose outside that tool/);
+  assert.match(sections().ste, /`say` tool/);
+  assert.match(sections().ste, /Write no prose outside that tool/);
 
   await command.handler("strict off", host.ctx);
   host.prompt();
-  assert.doesNotMatch(sections.ste, /strict mode/);
-  assert.match(sections.ste, /Simplified Technical English/);
+  assert.doesNotMatch(sections().ste, /strict mode/);
+  assert.match(sections().ste, /Simplified Technical English/);
 
   await command.handler("off", host.ctx);
   assert.equal(host.prompt(), undefined);
-  assert.deepEqual(sections, { other: "Keep this instruction." });
+  assert.deepEqual(sections(), { other: "Keep this instruction." });
 
   await command.handler("on", host.ctx);
   host.prompt();
-  assert.match(sections.ste, /Simplified Technical English/);
-  assert.doesNotMatch(sections.ste, /strict mode/);
-  assert.equal(sections.other, "Keep this instruction.");
+  assert.match(sections().ste, /Simplified Technical English/);
+  assert.doesNotMatch(sections().ste, /strict mode/);
+  assert.equal(sections().other, "Keep this instruction.");
 });
 
 test("say ends the turn only for an accepted final reply", async () => {
