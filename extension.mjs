@@ -128,6 +128,7 @@ export default function steExtension(pi) {
   pi.registerTool({
     name: "say",
     label: "Say",
+    exposure: "model-only",
     description:
       "Send prose to the user. In STE strict mode, use this for every reply. " +
       "A hard Simplified Technical English violation blocks the call. " +
