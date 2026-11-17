@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/ctotheameron/agent-ste/compare/v0.5.3...v0.5.4) (2026-11-17)
+
+
+### Bug fixes
+
+* Do not expose the say tool to codemode in pi ([6dad561](https://github.com/ctotheameron/agent-ste/commit/6dad56196b37c3046bf81ef49a4c55ddf4c116c3))
+
 ## [0.5.3](https://github.com/ctotheameron/agent-ste/compare/v0.5.2...v0.5.3) (2026-11-12)
 
 
