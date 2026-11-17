@@ -185,29 +185,6 @@ pi install npm:agent-ste
 
 The package also appears in the [pi gallery](https://pi.dev/packages).
 
-### Test this fork in pi
-
-Use Node.js 24 and Gleam 1.18.0 for the build. Git checkouts do not include the
-built engine. Build the local checkout before installing it:
-
-```sh
-git clone --branch fix/say-model-only https://github.com/mmainz/agent-ste.git ~/code/agent-ste
-cd ~/code/agent-ste
-npm ci --ignore-scripts
-npm run build
-```
-
-Skip the clone command if the checkout already exists. If you use the npm
-package, remove its declaration before installing the fork:
-
-```sh
-pi remove npm:agent-ste
-pi install ~/code/agent-ste
-```
-
-Run `/reload` in an existing session, then use `/ste strict` to test replies.
-Do not load both copies of the extension.
-
 ### Claude Code
 
 ```
@@ -246,16 +223,6 @@ document review, and leave it off for normal work.
 
 In pi, the `say` tool hides its draft arguments. It shows the accepted reply
 once as Markdown. A blocked call shows the STE errors.
-
-The `say` tool uses `exposure: "model-only"`. Pi declares it directly to the
-model and excludes it from codemode and other nested tool calls. Nested calls
-do not get a separate reply row, so the agent must call `say` directly.
-
-The `ste_lint` tool keeps its default `direct` exposure. The agent can check
-drafts directly or through codemode before calling `say`.
-
-With pi-compact-tools, add `say` to `custom_tools.exclude` to keep the reply
-visible without expanding a tool row.
 
 For a final answer, the agent calls `say` alone with `final: true`.
 That ends the turn without another model reply.
