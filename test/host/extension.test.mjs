@@ -73,6 +73,7 @@ test("layer 1 adds a named section without replacing the system prompt", () => {
   assert.match(sections.ste, /Simplified Technical English/);
   assert.match(sections.ste, /dictionary\/not-approved-word/);
   assert.doesNotMatch(sections.ste, /strict mode/);
+  assert.doesNotMatch(sections.ste, /codemode|`say`|`ste_lint`/);
 });
 
 for (const [label, options] of [
@@ -325,6 +326,9 @@ test("the strict note reaches the model only after /ste strict", async () => {
   await command.handler("strict", host.ctx);
   host.prompt();
   assert.match(sections().ste, /`say` tool/);
+  assert.match(sections().ste, /Call `say` directly/);
+  assert.match(sections().ste, /Do not call it through codemode or another tool/);
+  assert.match(sections().ste, /`ste_lint` directly or through codemode/);
   assert.match(sections().ste, /Write no prose outside that tool/);
 
   await command.handler("strict off", host.ctx);
@@ -349,6 +353,7 @@ test("say ends the turn only for an accepted final reply", async () => {
   const say = host.tools.find((tool) => tool.name === "say");
   assert.equal(say.parameters.properties.final.type, "boolean");
   assert.equal(say.parameters.required.includes("final"), false);
+  assert.match(say.description, /Call this tool directly, not through codemode or another tool/);
   assert.match(say.description, /call this tool alone with final: true/);
   assert.match(say.description, /Do not repeat.*assistant text/);
 

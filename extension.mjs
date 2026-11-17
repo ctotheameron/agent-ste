@@ -35,7 +35,10 @@ const STRICT_NOTE = [
   "## Simplified Technical English: strict mode",
   "",
   "Send every user-facing reply through the `say` tool.",
+  "Call `say` directly. Do not call it through codemode or another tool.",
   "Write no prose outside that tool.",
+  "",
+  "You can call `ste_lint` directly or through codemode before you call `say`.",
   "A hard violation blocks the call before the user reads the text.",
   "Read the reason, rewrite the text, then call the tool again.",
 ].join("\n");
@@ -131,6 +134,7 @@ export default function steExtension(pi) {
     exposure: "model-only",
     description:
       "Send prose to the user. In STE strict mode, use this for every reply. " +
+      "Call this tool directly, not through codemode or another tool. " +
       "A hard Simplified Technical English violation blocks the call. " +
       "For a final answer, call this tool alone with final: true. " +
       "Do not repeat this visible reply in assistant text.",

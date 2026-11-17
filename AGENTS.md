@@ -35,6 +35,13 @@ Three hosts read one engine. A new check belongs in Gleam, or in
 `src/host/lint.mjs` when it is about text selection. It never belongs in one
 host alone, because the other two then drift.
 
+## Pi integration only
+
+- Keep `say` at `exposure: "model-only"`.
+- Keep `ste_lint` callable through codemode.
+- Keep Pi tool-routing instructions in `extension.mjs`.
+- Do not add them to the shared STE prompt or Claude Code hooks.
+
 ## Gleam style
 
 Follow gleam_stdlib. Read `build/packages/gleam_stdlib/src/gleam/` for examples.

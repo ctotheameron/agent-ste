@@ -48,6 +48,16 @@ test("SessionStart returns the rule list as context", async () => {
   assert.match(output.additionalContext, /dictionary\/not-approved-word/);
 });
 
+test("Claude Code context excludes Pi tool-routing instructions", async () => {
+  for (const mode of [ON, LOOSE]) {
+    const result = await respond(event({ hook_event_name: "SessionStart" }), mode);
+    assert.doesNotMatch(
+      result.hookSpecificOutput.additionalContext,
+      /codemode|`say`|`ste_lint`/,
+    );
+  }
+});
+
 test("PreToolUse denies a write that breaks a hard rule", async () => {
   const result = await respond(write("notes.md", "We will initiate it."), ON);
   assert.equal(decisionOf(result), "deny");
