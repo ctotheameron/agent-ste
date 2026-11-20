@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -550,4 +550,25 @@ test("a bad switch value never blocks the hook, and it never turns checks off", 
   isolate(t, { STE_ENABLED: "maybe" });
   const result = await respond(write("a.md", "We will initiate it."), undefined);
   assert.equal(decisionOf(result), "deny");
+});
+
+// A saved fault must not freeze the start setting. Otherwise a session that
+// began on, because of the environment, stays on after the environment changes.
+test("recording a reply fault leaves the start setting unfrozen", async (t) => {
+  isolate(t, { STE_ENABLED: "1" });
+  const id = "test-no-freeze";
+  t.after(() => rmSync(statePath(id), { force: true }));
+  await respond(
+    event({
+      session_id: id,
+      hook_event_name: "Stop",
+      last_assistant_message: "We will initiate it.",
+    }),
+  );
+  assert.equal(JSON.parse(readFileSync(statePath(id), "utf8")).enabled, undefined);
+  env.STE_ENABLED = "0";
+  assert.deepEqual(
+    await respond(event({ session_id: id, hook_event_name: "UserPromptSubmit" })),
+    {},
+  );
 });

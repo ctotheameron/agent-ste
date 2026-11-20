@@ -79,6 +79,23 @@ export function writeState(sessionId, state) {
 }
 
 /**
+ * Saves some fields, and keeps the rest of the file as it is.
+ *
+ * A hook that saves a reply fault must not also save `enabled`. The flag would
+ * freeze the start setting. A later change of the config or of the environment
+ * would then do nothing. Only a `/ste` word writes `enabled`.
+ */
+export function patchState(sessionId, fields) {
+  let raw = {};
+  try {
+    raw = JSON.parse(readFileSync(statePath(sessionId), "utf8"));
+  } catch {
+    // A missing or damaged file starts again from the fields alone.
+  }
+  writeState(sessionId, { ...raw, ...fields });
+}
+
+/**
  * Applies one `/ste` word to a state.
  *
  * The words match the pi command in extension.mjs. An empty word toggles, and

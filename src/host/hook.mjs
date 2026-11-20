@@ -20,7 +20,7 @@
  */
 
 import { loadConfig } from "./config.mjs";
-import { DEFAULT_STATE, identify, readState, writeState } from "./session.mjs";
+import { DEFAULT_STATE, identify, patchState, readState } from "./session.mjs";
 
 /** The tail of a block reason. A reply needs no second tool call. */
 const REPLY_TAIL = "Write the reply again in Simplified Technical English.";
@@ -160,8 +160,7 @@ function recordReply({ module, engine }, event, state) {
 
   // `replyReport` in the settings picks the severity this note carries. A fleet
   // that sets every rule to `soft` reads nothing without it.
-  writeState(event.session_id, {
-    ...state,
+  patchState(event.session_id, {
     replied: name,
     pending: module.replyFaults(engine, subject),
   });
@@ -179,7 +178,7 @@ function deliverReply(event, state) {
   if (pending.length === 0) {
     return nothing();
   }
-  writeState(event.session_id, { ...state, pending: [] });
+  patchState(event.session_id, { pending: [] });
   return context(
     "UserPromptSubmit",
     `Your previous reply broke Simplified Technical English ${pending.length} ` +
