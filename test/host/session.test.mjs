@@ -108,3 +108,29 @@ test("a session id with a path in it cannot escape the directory", () => {
   );
   assert.match(statePath(undefined), /unknown\.json$/);
 });
+
+test("the start state is the default for a session with no file", () => {
+  const off = { ...DEFAULT_STATE, enabled: false };
+  assert.deepEqual(readState("test-absent-session", off), off);
+});
+
+test("a saved state wins over the start state, and a file with no flag uses it", (t) => {
+  const id = "test-start-state";
+  t.after(() => rmSync(statePath(id), { force: true }));
+  const off = { ...DEFAULT_STATE, enabled: false };
+  writeState(id, { ...DEFAULT_STATE, enabled: true });
+  assert.equal(readState(id, off).enabled, true);
+  writeState(id, { strict: true });
+  assert.equal(readState(id, off).enabled, false);
+});
+
+test("/ste on switches a session on that started off", () => {
+  const off = { ...DEFAULT_STATE, enabled: false };
+  assert.equal(apply(off, "on").enabled, true);
+  assert.equal(apply(off, "").enabled, true);
+});
+
+test("describe says when replies are off", () => {
+  assert.match(describe(ON, "off"), /^STE on, replies off\./);
+  assert.match(describe(OFF, "off"), /^STE off\./);
+});

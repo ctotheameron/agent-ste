@@ -21,3 +21,7 @@ The words are the words of the `/ste` command of the pi extension:
 | `status` | Report the state, and change nothing. |
 | `strict` | Block a reply that breaks a hard rule. |
 | `strict off` | Leave strict mode. A write and a commit message still block. |
+
+A session can start off. `STE_ENABLED=0` or `"enabled": false` in a config file
+does this, and `/ste on` then switches it on. `"replies": "off"` or
+`STE_REPLIES=off` stops the reply layer only.

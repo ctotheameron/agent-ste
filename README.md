@@ -164,6 +164,31 @@ write, and it still reads every fault.
 A bad name, a bad severity, or any other key stops the command with exit code 2.
 A linter that reads broken settings and reports a pass gives a false result.
 
+### Start off, or skip replies
+
+Two more settings steer the Claude Code hooks. They sit in the same files, and
+an environment variable beats both files:
+
+| Setting | Values | Environment | Default |
+| --- | --- | --- | --- |
+| `"enabled"` | `true`, `false` | `STE_ENABLED` (`1`, `0`, `on`, `off`, `true`, `false`) | on |
+| `"replies"` | `"on"`, `"off"` | `STE_REPLIES` (`on`, `off`) | on |
+
+```json
+{ "enabled": false, "replies": "off" }
+```
+
+- `enabled: false` starts each session with every check off. `STE_ENABLED=1`, or
+  `enabled: true` in a file that wins, starts it on. In an interactive session,
+  `/ste on` switches it on, and `/ste off` switches it off. A `/ste` word wins
+  over the config for that session.
+- `replies: "off"` stops the Stop hook from reading replies, in normal mode and
+  in strict mode. A write, a commit message and a `gh` text keep their checks.
+- A bad value stops the command with exit code 2. A hook that meets a bad value
+  starts with the defaults, and it names the fault in the session context.
+- The pi extension and the command ignore both settings. They check the values
+  and nothing more.
+
 ## Where it looks
 
 | File | Text it reads |
@@ -172,6 +197,7 @@ A linter that reads broken settings and reports a pass gives a false result.
 | `.ts`, `.js`, `.gleam`, `.go`, `.rs`, ... | `//` and `/* */` comments |
 | `.sh`, `.py`, `.rb`, `.yml`, `.toml` | `#` comments |
 | a `-m` or `--message` value in bash | the message, whatever the command |
+| `gh pr` and `gh issue` `create`, `edit`, `comment`, `review` | the `--title` and `--body` values, and a body from `--body-file` or a heredoc |
 | the reply to you | the prose the agent sends |
 | anything else | nothing |
 
@@ -210,6 +236,12 @@ Exit code 1 means a hard fault. Use it in a pre-commit hook or in CI.
 /ste strict      Gate every reply
 /ste strict off  Leave strict mode
 ```
+
+A `gh pr` or `gh issue` title and body follow the same rules as a commit message,
+in Claude Code. The hook reads a quoted value, a `$(cat <<'EOF' ...)` body, a
+`-F -` heredoc, and a body file that exists when the command starts. It skips a
+value that is not prose, such as the `-b main` of `gh pr list`. `gh api` stays
+unread.
 
 Both hosts start the same way. Normal mode blocks a write and a commit message.
 It reads each reply too, and it hands the faults to the agent before its next

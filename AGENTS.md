@@ -22,7 +22,7 @@ It owns no rules.
 | File | Job |
 | --- | --- |
 | `src/host/lint.mjs` | the one rule layer every host calls |
-| `src/host/select.mjs` | reads a message out of a bash command |
+| `src/host/select.mjs` | reads a message or a `gh` text out of a bash command |
 | `src/host/config.mjs` | reads `.ste.json`, and checks it against the roster |
 | `src/host/hook.mjs` | maps a Claude Code event to a Claude Code result |
 | `src/host/session.mjs` | the per-session mode for Claude Code |

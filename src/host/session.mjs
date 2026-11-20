@@ -42,20 +42,24 @@ export function statePath(sessionId) {
 /**
  * Reads the state of a session.
  *
- * Every error gives the default. A missing file is the normal first read, and a
+ * Every error gives `defaults`. The caller passes the start state that the
+ * config and the environment ask for. A file written by `/ste` wins over both.
+ * So an interactive session can switch checks on or off, whatever the config
+ * says. A
+ * missing file is the normal first read, and a
  * damaged file must not stop the linter.
  */
-export function readState(sessionId) {
+export function readState(sessionId, defaults = DEFAULT_STATE) {
   try {
     const raw = JSON.parse(readFileSync(statePath(sessionId), "utf8"));
     return {
-      enabled: raw.enabled !== false,
+      enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
       strict: raw.strict === true,
       pending: Array.isArray(raw.pending) ? raw.pending : [],
       replied: typeof raw.replied === "string" ? raw.replied : "",
     };
   } catch {
-    return DEFAULT_STATE;
+    return defaults;
   }
 }
 
@@ -98,9 +102,12 @@ export function apply(state, word) {
 }
 
 /** One line for the user, and for the model that reads the command output. */
-export function describe(state) {
+export function describe(state, replies = "on") {
   if (!state.enabled) {
-    return "STE off. No hook checks a write, a commit message or a reply.";
+    return "STE off. No hook checks a write, a commit message, a gh text or a reply.";
+  }
+  if (replies === "off") {
+    return `STE on, replies off. A write, a commit message and a gh text still block.`;
   }
   const reply = state.strict
     ? "A hard violation in a reply blocks the stop, one time."
