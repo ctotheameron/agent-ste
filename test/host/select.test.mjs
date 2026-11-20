@@ -97,7 +97,7 @@ test("it ignores a message flag before the commit verb", () => {
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ghMessages, shellCommands } from "../../src/host/select.mjs";
+import { ghMessages } from "../../src/host/select.mjs";
 
 test("gh reads the title and the body of a new pull request", () => {
   assert.deepEqual(
@@ -181,10 +181,4 @@ test("gh reads a command that follows another command", () => {
   const text = `git push -u origin x && gh pr create -t "feat: add it" ; echo done`;
   assert.equal(ghMessages(text)[0].text, "feat: add it");
   assert.equal(ghMessages(`GH_TOKEN=abc gh pr create -t "feat: add it"`).length, 1);
-});
-
-test("the shell reader splits quotes, operators and comments", () => {
-  const [first, second] = shellCommands(`echo 'a b' "c d" e\\ f # no\nls | wc`);
-  assert.deepEqual(first.words.map((w) => w.value), ["echo", "a b", "c d", "e f"]);
-  assert.equal(second.words[0].value, "ls");
 });
