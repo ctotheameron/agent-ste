@@ -2,9 +2,9 @@
  * Reads the project settings for the linter.
  *
  * A project chooses the severity of each rule in a `.ste.json` file at its
- * root. A rule reads `hard`, `soft` or `off`. Two more keys steer Claude Code.
- * `enabled` says if a new session starts with checks on. `replies` says if the
- * Stop hook reads replies. An unknown key is an error, so a
+ * root. A rule reads `hard`, `soft` or `off`. Two more keys apply to Claude
+ * Code. `enabled` sets whether a new session starts with checks on. `replies`
+ * sets whether the Stop hook checks replies. An unknown key is an error, so a
  * typo cannot pass in silence.
  *
  * The loader owns no rule. It checks each name against the roster the engine
@@ -102,8 +102,8 @@ function checkRules(path, rules, names) {
  * Reads and checks one config file.
  *
  * `names` holds every rule the engine reports. The caller reads it from the
- * engine, so this module never repeats the roster. A caller that holds no
- * roster passes nothing, and then only the severities get checked.
+ * engine, so this module never repeats the roster. A caller without a roster
+ * passes nothing, and the loader then checks the severities only.
  */
 export function readConfig(path, names) {
   const value = parse(path);
@@ -134,8 +134,8 @@ export function readConfig(path, names) {
 /**
  * Reads a switch from the environment, or undefined when it is empty.
  *
- * A word that means neither yes nor no is an error. A session that starts with
- * checks off because of a typo would hide every fault.
+ * A word that is neither yes nor no is an error. A typo that started a session
+ * with checks off would hide every fault.
  */
 function readSwitch(name, words) {
   const raw = env[name]?.trim().toLowerCase();
@@ -167,10 +167,9 @@ function exists(path) {
  * carries on gives the author a false pass. An absent global file is normal,
  * unless `STE_CONFIG` named it, because an operator who names a file wants it.
  *
- * `enabled` and `replies` follow one order. The environment wins, then the
- * project file, then the global file. Each stays absent when nothing sets it,
- * and the caller then keeps its own default. The `STE_ENABLED` and
- * `STE_REPLIES` variables hold the environment values.
+ * `enabled` and `replies` resolve in this order: the environment variable
+ * (`STE_ENABLED`, `STE_REPLIES`), the project file, the global file. When none
+ * sets a key, the result omits it and the caller uses its own default.
  */
 export function loadConfig(from, names) {
   const global = globalPath();
@@ -205,7 +204,7 @@ export function loadConfig(from, names) {
   const reply = replies || latest("replies");
   return {
     rules,
-    // A key that nothing sets stays absent, so a caller sees the plain default.
+    // The result omits a key that no source sets.
     ...(enabled === undefined ? {} : { enabled }),
     ...(reply === undefined ? {} : { replies: reply }),
     paths,

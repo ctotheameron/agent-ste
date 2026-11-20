@@ -120,10 +120,8 @@ export function commitMessage(command) {
 
 // --- prose in a `gh` command ---
 //
-// `gh pr create` and its kin send a title and a body to other people. Gleam
-// reads the command, in src/ste/shell.gleam, and it names each field with a
-// label. This file only reads a body file from disk, which Gleam cannot do
-// without a target-specific FFI.
+// src/ste/shell.gleam parses the command and labels each field. This file reads
+// a body file from disk. Gleam would need a target-specific FFI for that.
 
 const MAX_BODY_FILE = 1_000_000;
 
@@ -137,11 +135,12 @@ function readBodyFile(path, cwd) {
 }
 
 /**
- * Every prose field that `gh pr` and `gh issue` commands send in a bash command.
+ * The title, body and comment fields of the `gh pr` and `gh issue` commands in
+ * a bash command.
  *
- * Each entry holds `text` and a `label`, such as `the PR body`. A body file is
- * read from disk at `cwd`. The host skips a file that is missing, too large or
- * unreadable.
+ * Each entry is `{ text, label }`, for example `the PR body`. A body file is
+ * read from disk, relative to `cwd`. A file that is missing, too large or
+ * unreadable gives no entry.
  */
 export function ghMessages(command, cwd) {
   return JSON.parse(shell.gh_texts_json(command)).flatMap(({ label, text, file }) => {

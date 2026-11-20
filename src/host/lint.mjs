@@ -173,12 +173,10 @@ export function commitSubject(command) {
 }
 
 /**
- * Every subject a bash command carries, in the order a reader meets them.
- *
- * The first is the `-m` or `--message` text, if any. Then comes each title,
- * body or comment of a `gh pr` or `gh issue` command. Each is its own subject,
- * so a block reason names the field that failed. `cwd` resolves a `--body-file`
- * path.
+ * The subjects in a bash command. The `-m` or `--message` text comes first, if
+ * present. Each title, body or comment of a `gh pr` or `gh issue` command
+ * follows. Each field is a separate subject, so a block reason names the failing field.
+ * `cwd` is the base directory for a relative `--body-file` path.
  */
 export function bashSubjects(command, cwd) {
   const message = commitSubject(command);

@@ -42,12 +42,11 @@ export function statePath(sessionId) {
 /**
  * Reads the state of a session.
  *
- * Every error gives `defaults`. The caller passes the start state that the
- * config and the environment ask for. A file written by `/ste` wins over both.
- * So an interactive session can switch checks on or off, whatever the config
- * says. A
- * missing file is the normal first read, and a
+ * Every error returns `defaults`. A missing file is the normal first read. A
  * damaged file must not stop the linter.
+ *
+ * `defaults` is the start state from the config and the environment. A value in
+ * the session file, which `/ste` writes, overrides it.
  */
 export function readState(sessionId, defaults = DEFAULT_STATE) {
   try {
@@ -81,16 +80,16 @@ export function writeState(sessionId, state) {
 /**
  * Saves some fields, and keeps the rest of the file as it is.
  *
- * A hook that saves a reply fault must not also save `enabled`. The flag would
- * freeze the start setting. A later change of the config or of the environment
- * would then do nothing. Only a `/ste` word writes `enabled`.
+ * A hook that saves a reply fault must not write `enabled`. A saved `enabled`
+ * would override the config and the environment for the rest of the session.
+ * Only a `/ste` word writes it.
  */
 export function patchState(sessionId, fields) {
   let raw = {};
   try {
     raw = JSON.parse(readFileSync(statePath(sessionId), "utf8"));
   } catch {
-    // A missing or damaged file starts again from the fields alone.
+    // A missing or damaged file leaves only `fields` to write.
   }
   writeState(sessionId, { ...raw, ...fields });
 }

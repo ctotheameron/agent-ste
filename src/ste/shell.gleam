@@ -1,12 +1,11 @@
-//// Reads a bash command the way a shell splits it, and finds the prose that a
-//// `gh pr` or `gh issue` command sends.
+//// Splits a bash command into words, and extracts the title, body and comment
+//// text of `gh pr` and `gh issue` commands.
 ////
-//// Which text counts is a rule about text, so it lives here beside the other
-//// rules. A host only reads a file from disk, and it reports the result.
+//// The rule about which text is linted sits here with the other text rules.
+//// The host only reads body files from disk.
 ////
-//// A word that holds a command substitution or a backtick has no known value.
-//// The reader skips it. A skip gives a miss, and a miss costs less than a
-//// false block.
+//// A word with a command substitution or a backtick has no known value, so the
+//// reader skips it. A skipped word can miss a fault. A false block is worse.
 
 import gleam/json
 import gleam/list
@@ -15,19 +14,19 @@ import gleam/regexp.{type Match}
 import gleam/result
 import gleam/string
 
-/// One word of a command. `dynamic` marks a value that a shell computes.
-/// `heredoc` marks a word that came from a `$(cat <<EOF ...)` body.
+/// One word of a command. `dynamic` is True when a shell computes the value.
+/// `heredoc` is True when the value is the body of a `$(cat <<EOF ...)`.
 pub type Word {
   Word(value: String, dynamic: Bool, heredoc: Bool)
 }
 
-/// One simple command, with the text that a heredoc feeds to its stdin.
+/// One simple command. `stdin` is the body of a heredoc on that command.
 pub type Command {
   Command(words: List(Word), stdin: String)
 }
 
-/// A piece of prose that a `gh` command sends. A `file` means the text sits in
-/// that path, and the host reads it.
+/// A text field of a `gh` command. When `file` is `Some`, `text` is empty and
+/// the host reads the text from that path.
 pub type GhText {
   GhText(label: String, text: String, file: Option(String))
 }
@@ -56,7 +55,7 @@ type Flag {
 
 const empty_word = Word("", False, False)
 
-// `$(cat <<'EOF' ... EOF)`, the form a model uses to pass a long body.
+// Matches `$(cat <<'EOF' ... EOF)`, a common way to pass a long body.
 const cat_pattern = "^\\$\\(\\s*cat\\s+<<-?\\s*(['\"]?)(\\w+)\\1[ \\t]*\\n([\\s\\S]*?)\\n[ \\t]*\\2[ \\t]*\\n?\\s*\\)"
 
 const heredoc_pattern = "^(-?)[ \\t]*(['\"]?)(\\w+)\\2"
@@ -67,8 +66,7 @@ const flag_pattern = "^(?:--(title|body|body-file)(?:=([\\s\\S]*))?|-([tbF])(?:=
 
 /// Splits a command into simple commands, each a list of words.
 ///
-/// The reader knows quotes, operators, comments and heredocs, which is what a
-/// `gh` call needs. It is not a shell.
+/// It handles quotes, operators, comments and heredocs. It is not a full shell.
 pub fn commands(source: String) -> List(Command) {
   read_loop(Reader([], [], "", None, []), source)
   |> end_command
@@ -85,7 +83,7 @@ fn read_loop(reader: Reader, rest: String) -> Reader {
   }
 }
 
-/// Handles the character at the head of `rest`. `tail` is `rest` without it.
+/// Handles the first character of `rest`. `tail` is `rest` without that character.
 fn step(
   reader: Reader,
   char: String,
@@ -216,7 +214,7 @@ fn double_dollar(rest: String, tail: String, word: Word) -> #(Word, String) {
   }
 }
 
-/// The text after the `)` that closes the `$(` at the head of `rest`.
+/// The text after the `)` that closes the `$(` at the start of `rest`.
 fn skip_substitution(rest: String) -> String {
   substitution_loop(string.drop_start(rest, 1), 0)
 }
@@ -231,7 +229,7 @@ fn substitution_loop(rest: String, depth: Int) -> String {
   }
 }
 
-/// Reads one body for each pending heredoc, in the order of the redirects.
+/// Reads one body for each pending heredoc, in redirect order.
 fn read_bodies(
   pending: List(Pending),
   rest: String,
@@ -313,8 +311,8 @@ fn end_word(reader: Reader) -> Reader {
   }
 }
 
-/// Closes the command in progress. A heredoc that follows a `&&` on the same
-/// line feeds the command before it, so an empty command is not stored.
+/// Ends the current command. An empty command is not stored. Its heredoc body,
+/// if any, goes to the previous command.
 fn end_command(reader: Reader) -> Reader {
   let ended = end_word(reader)
   case ended.words, ended.stdin {
@@ -339,16 +337,16 @@ fn feed(done: List(Command), stdin: String) -> List(Command) {
 
 // --- gh ---
 
-/// Every title, body and comment that `gh pr` and `gh issue` commands send.
+/// The title, body and comment fields of `gh pr` and `gh issue` commands.
 ///
-/// The commands are `create`, `edit` and `comment`, and `review` for `gh pr`.
-/// A flag value counts only when it reads as prose, so `gh pr list -b main` and
-/// `--body "$BODY"` stay unread.
+/// The verbs are `create`, `edit` and `comment`, and `review` for `gh pr`. A
+/// flag value is returned only when it reads as prose, so `gh pr list -b main`
+/// and `--body "$BODY"` return nothing.
 pub fn gh_texts(source: String) -> List(GhText) {
   list.flat_map(commands(source), command_texts)
 }
 
-/// The same list as JSON, so no host depends on the shape of a Gleam record.
+/// `gh_texts` as a JSON string. Hosts parse JSON and do not read Gleam records.
 pub fn gh_texts_json(source: String) -> String {
   gh_texts(source)
   |> json.array(fn(found) {
@@ -380,8 +378,8 @@ fn is_gh(program: String) -> Bool {
   program == "gh" || string.ends_with(program, "/gh")
 }
 
-/// What `noun verb` calls its fields. A body means a comment on `comment`, and
-/// a review on `review`, so a block reason names the right thing.
+/// The field names for `noun verb`. The body field is named "comment" for the
+/// `comment` verb and "review" for the `review` verb, for use in block reasons.
 fn target(noun: String, verb: String, stdin: String) -> Result(Target, Nil) {
   case noun, verb {
     "pr", "create" | "pr", "edit" -> Ok(Target("PR", "body", stdin))
@@ -412,7 +410,7 @@ fn flag_loop(
   }
 }
 
-/// The value of a flag. It is the text after `=`, or else the next word.
+/// The value of a flag: the text after `=`, or else the next word.
 fn take_value(
   inline: Option(String),
   rest: List(Word),
@@ -496,8 +494,8 @@ fn base_name(path: String) -> String {
 
 /// True when a value reads as prose rather than as a token.
 ///
-/// A value needs two words with a letter in them, and one lowercase letter.
-/// So `main`, `755` and `$BODY` stay unread.
+/// A value needs two words that contain a letter, and at least one lowercase
+/// letter. `main`, `755` and `$BODY` do not qualify.
 fn reads_as_prose(value: String) -> Bool {
   let words =
     regexp.split(compile("\\s+"), string.trim(value))

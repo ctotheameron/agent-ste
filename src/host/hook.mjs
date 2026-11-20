@@ -120,7 +120,7 @@ function subjectOf(module, toolName, input, cwd) {
 
 function gate({ module, engine }, event) {
   const found = subjectOf(module, event.tool_name, event.tool_input ?? {}, event.cwd);
-  // A write has one subject, and a bash command has a list of them.
+  // A write gives one subject. A bash command gives a list.
   const subjects = [found].flat().filter((subject) => subject !== undefined);
   const results = subjects.map((subject) => ({
     subject,
@@ -261,12 +261,11 @@ function parseEvent(raw) {
 }
 
 /**
- * What a session starts with, when no `/ste` word is in force.
+ * The start state of a session that has no `/ste` word, and the reply setting.
  *
- * The config and the environment can switch checks off for a whole machine.
- * They can also switch the reply layer off. With nothing set, the default
- * holds, and it is on. A broken config gives the default too. The SessionStart
- * context names the fault, so a typo never blocks the work.
+ * `enabled` and `replies` come from the environment and the config files. With
+ * no setting, checks are on, and the Stop hook checks replies. A broken config also gives
+ * these defaults, and the SessionStart context reports the fault.
  */
 export function startSettings(cwd) {
   try {
@@ -282,7 +281,7 @@ export function startSettings(cwd) {
 
 /**
  * Maps one raw event to one result. The state argument is for a test. In normal
- * use the state comes from the session file, or from the start settings.
+ * use the state comes from the session file, or else from the start settings.
  */
 export async function respond(raw, state) {
   const event = parseEvent(raw);
