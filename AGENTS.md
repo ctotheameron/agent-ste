@@ -22,7 +22,7 @@ It owns no rules.
 | File | Job |
 | --- | --- |
 | `src/host/lint.mjs` | the one rule layer every host calls |
-| `src/host/select.mjs` | reads a message out of a bash command |
+| `src/host/select.mjs` | reads a message out of a bash command, and a body file from disk |
 | `src/host/config.mjs` | reads `.ste.json`, and checks it against the roster |
 | `src/host/hook.mjs` | maps a Claude Code event to a Claude Code result |
 | `src/host/session.mjs` | the per-session mode for Claude Code |
@@ -83,6 +83,9 @@ A rule needs two parts, and both live in Gleam:
 
 `src/ste/select.gleam` decides which text the linter may read, per file type.
 That is a rule about text, so it lives in Gleam beside the other rules.
+`src/ste/shell.gleam` does the same for a bash command. It splits the command into
+words, and it finds the title and body of a `gh pr` or `gh issue` command. A host
+only reads a body file from disk.
 
 The test `every_declared_rule_is_implemented_test` compares the roster against
 the ids the engine emits, in both directions. This stops the prompt from asking

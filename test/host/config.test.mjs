@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -175,3 +176,69 @@ test("the prompt drops a rule that is off", () => {
   assert.ok(promptText(newEngine()).includes("verb/passive"));
   assert.ok(!promptText(off).includes("verb/passive"));
 });
+
+// --- the enabled and replies settings ---
+
+test("it reads enabled and replies, and leaves them absent when unset", (t) => {
+  isolate(t);
+  assert.equal("enabled" in loadConfig(sandbox(`{}`), NAMES), false);
+  const config = loadConfig(sandbox(`{ "enabled": false, "replies": "off" }`), NAMES);
+  assert.equal(config.enabled, false);
+  assert.equal(config.replies, "off");
+});
+
+test("a bad enabled or replies value is a config error", (t) => {
+  isolate(t);
+  for (const text of [
+    `{ "enabled": "no" }`,
+    `{ "enabled": 0 }`,
+    `{ "replies": "report" }`,
+    `{ "replies": true }`,
+  ]) {
+    assert.throws(() => loadConfig(sandbox(text), NAMES), ConfigError, text);
+  }
+});
+
+test("the project beats the global file, and the environment beats both", (t) => {
+  isolate(t);
+  const dir = mkdtempSync(join(tmpdir(), "ste-global-"));
+  writeFileSync(join(dir, "c.json"), `{ "enabled": false, "replies": "off" }`);
+  env.STE_CONFIG = join(dir, "c.json");
+  assert.equal(loadConfig(sandbox(), NAMES).enabled, false);
+  assert.equal(loadConfig(sandbox(`{ "enabled": true }`), NAMES).enabled, true);
+  assert.equal(loadConfig(sandbox(`{ "enabled": true }`), NAMES).replies, "off");
+
+  env.STE_ENABLED = "off";
+  env.STE_REPLIES = "ON";
+  const config = loadConfig(sandbox(`{ "enabled": true }`), NAMES);
+  assert.equal(config.enabled, false);
+  assert.equal(config.replies, "on");
+});
+
+test("a bad environment value is a config error, and an empty one is unset", (t) => {
+  isolate(t, { STE_ENABLED: "maybe" });
+  assert.throws(() => loadConfig(sandbox(), NAMES), /STE_ENABLED/);
+  env.STE_ENABLED = "";
+  env.STE_REPLIES = "sometimes";
+  assert.throws(() => loadConfig(sandbox(), NAMES), /STE_REPLIES/);
+  env.STE_REPLIES = "";
+  assert.equal("enabled" in loadConfig(sandbox(), NAMES), false);
+});
+
+test("the command reads the new keys and exits 2 on a bad one", (t) => {
+  isolate(t);
+  const bin = new URL("../../bin/ste-lint.mjs", import.meta.url).pathname;
+  const run = (text) =>
+    spawnSync(process.execPath, [bin, "--config", writeConfig(text)], {
+      input: "Ship it.\n",
+      encoding: "utf8",
+    }).status;
+  assert.equal(run(`{ "enabled": false, "replies": "off" }`), 0);
+  assert.equal(run(`{ "replies": "maybe" }`), 2);
+});
+
+function writeConfig(text) {
+  const path = join(mkdtempSync(join(tmpdir(), "ste-cfg-")), "c.json");
+  writeFileSync(path, text);
+  return path;
+}

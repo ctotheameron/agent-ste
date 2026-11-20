@@ -2,8 +2,10 @@
  * Reads the project settings for the linter.
  *
  * A project chooses the severity of each rule in a `.ste.json` file at its
- * root. A rule reads `hard`, `soft` or `off`. Nothing else belongs in the file
- * yet. An unknown key is an error, so a typo cannot pass in silence.
+ * root. A rule reads `hard`, `soft` or `off`. Two more keys apply to Claude
+ * Code. `enabled` sets whether a new session starts with checks on. `replies`
+ * sets whether the Stop hook checks replies. An unknown key is an error, so a
+ * typo cannot pass in silence.
  *
  * The loader owns no rule. It checks each name against the roster the engine
  * reports, so the engine stays the one source of truth.
@@ -18,6 +20,8 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { env } from "node:process";
 
 export const CONFIG_NAME = ".ste.json";
+
+const KEYS = ["rules", "enabled", "replies"];
 
 /**
  * The global file, which holds the default for every session on a machine.
@@ -36,6 +40,9 @@ export function globalPath() {
 }
 
 const SETTINGS = ["hard", "soft", "off"];
+const SWITCHES = ["on", "off"];
+const TRUE_WORDS = ["1", "true", "on", "yes"];
+const FALSE_WORDS = ["0", "false", "off", "no"];
 
 /** An error the caller reports to a user. It names the file and the fault. */
 export class ConfigError extends Error {}
@@ -77,7 +84,7 @@ function checkRules(path, rules, names) {
     throw new ConfigError(`${path}: "rules" must be an object.`);
   }
   for (const [name, setting] of Object.entries(rules)) {
-    if (!names.includes(name)) {
+    if (names !== undefined && !names.includes(name)) {
       throw new ConfigError(
         `${path}: "${name}" is no rule. The rules are: ${names.join(", ")}.`,
       );
@@ -95,7 +102,8 @@ function checkRules(path, rules, names) {
  * Reads and checks one config file.
  *
  * `names` holds every rule the engine reports. The caller reads it from the
- * engine, so this module never repeats the roster.
+ * engine, so this module never repeats the roster. A caller without a roster
+ * passes nothing, and the loader then checks the severities only.
  */
 export function readConfig(path, names) {
   const value = parse(path);
@@ -103,11 +111,44 @@ export function readConfig(path, names) {
     throw new ConfigError(`${path}: the file must hold a JSON object.`);
   }
   for (const key of Object.keys(value)) {
-    if (key !== "rules") {
-      throw new ConfigError(`${path}: "${key}" is no setting. Write "rules".`);
+    if (!KEYS.includes(key)) {
+      throw new ConfigError(
+        `${path}: "${key}" is no setting. Write ${KEYS.map((k) => `"${k}"`).join(", ")}.`,
+      );
     }
   }
-  return { rules: checkRules(path, value.rules ?? {}, names), path };
+  if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
+    throw new ConfigError(`${path}: "enabled" must be true or false.`);
+  }
+  if (value.replies !== undefined && !SWITCHES.includes(value.replies)) {
+    throw new ConfigError(`${path}: "replies" reads "${value.replies}". Write "on" or "off".`);
+  }
+  return {
+    rules: checkRules(path, value.rules ?? {}, names),
+    enabled: value.enabled,
+    replies: value.replies,
+    path,
+  };
+}
+
+/**
+ * Reads a switch from the environment, or undefined when it is empty.
+ *
+ * A word that is neither yes nor no is an error. A typo that started a session
+ * with checks off would hide every fault.
+ */
+function readSwitch(name, words) {
+  const raw = env[name]?.trim().toLowerCase();
+  if (raw === undefined || raw === "") {
+    return undefined;
+  }
+  const [on, off] = words;
+  if (on.includes(raw) || off.includes(raw)) {
+    return on.includes(raw);
+  }
+  throw new ConfigError(
+    `${name} reads "${env[name]}". Write ${on.join(", ")} or ${off.join(", ")}.`,
+  );
 }
 
 function exists(path) {
@@ -125,11 +166,15 @@ function exists(path) {
  * A fault in either file throws. A linter that reads broken settings and
  * carries on gives the author a false pass. An absent global file is normal,
  * unless `STE_CONFIG` named it, because an operator who names a file wants it.
+ *
+ * `enabled` and `replies` resolve in this order: the environment variable
+ * (`STE_ENABLED`, `STE_REPLIES`), the project file, the global file. When none
+ * sets a key, the result omits it and the caller uses its own default.
  */
 export function loadConfig(from, names) {
   const global = globalPath();
   const paths = [];
-  let rules = {};
+  const files = [];
 
   if (global.named && !exists(global.path)) {
     throw new ConfigError(
@@ -137,16 +182,32 @@ export function loadConfig(from, names) {
     );
   }
   if (exists(global.path)) {
-    rules = readConfig(global.path, names).rules;
+    files.push(readConfig(global.path, names));
     paths.push(global.path);
   }
 
   const project = findConfig(from);
   if (project !== undefined) {
-    // The project wins for each rule it names, and it keeps the rest.
-    rules = { ...rules, ...readConfig(project, names).rules };
+    files.push(readConfig(project, names));
     paths.push(project);
   }
 
-  return { rules, paths, path: paths[paths.length - 1] };
+  // The project wins for each rule it names, and it keeps the rest.
+  const rules = Object.assign({}, ...files.map((file) => file.rules));
+  const latest = (key) => files.map((file) => file[key]).findLast((v) => v !== undefined);
+  const replies = env.STE_REPLIES?.trim().toLowerCase();
+  if (replies && !SWITCHES.includes(replies)) {
+    throw new ConfigError(`STE_REPLIES reads "${env.STE_REPLIES}". Write on or off.`);
+  }
+
+  const enabled = readSwitch("STE_ENABLED", [TRUE_WORDS, FALSE_WORDS]) ?? latest("enabled");
+  const reply = replies || latest("replies");
+  return {
+    rules,
+    // The result omits a key that no source sets.
+    ...(enabled === undefined ? {} : { enabled }),
+    ...(reply === undefined ? {} : { replies: reply }),
+    paths,
+    path: paths[paths.length - 1],
+  };
 }

@@ -20,7 +20,7 @@
  */
 
 import { loadConfig } from "./config.mjs";
-import { identify, readState, writeState } from "./session.mjs";
+import { DEFAULT_STATE, identify, patchState, readState } from "./session.mjs";
 
 /** The tail of a block reason. A reply needs no second tool call. */
 const REPLY_TAIL = "Write the reply again in Simplified Technical English.";
@@ -103,7 +103,7 @@ async function ruleLayer(cwd) {
 }
 
 /** What, if anything, the linter reads from a Claude Code tool call. */
-function subjectOf(module, toolName, input) {
+function subjectOf(module, toolName, input, cwd) {
   if (toolName === "Write") {
     return module.fileSubject(input.file_path ?? "", input.content ?? "");
   }
@@ -113,23 +113,28 @@ function subjectOf(module, toolName, input) {
     return module.editSubject(input.file_path ?? "", [input.new_string ?? ""]);
   }
   if (toolName === "Bash") {
-    return module.commitSubject(input.command ?? "");
+    return module.bashSubjects(input.command ?? "", cwd);
   }
   return undefined;
 }
 
 function gate({ module, engine }, event) {
-  const subject = subjectOf(module, event.tool_name, event.tool_input ?? {});
-  if (subject === undefined) {
-    return allow();
+  const found = subjectOf(module, event.tool_name, event.tool_input ?? {}, event.cwd);
+  // A write gives one subject. A bash command gives a list.
+  const subjects = [found].flat().filter((subject) => subject !== undefined);
+  const results = subjects.map((subject) => ({
+    subject,
+    result: module.check(engine, subject),
+  }));
+
+  const hard = results.filter(({ result }) => result.reason !== undefined);
+  if (hard.length > 0) {
+    return deny(hard.map(({ result }) => result.reason).join("\n\n"));
   }
-  const result = module.check(engine, subject);
-  if (result.reason !== undefined) {
-    return deny(result.reason);
-  }
-  return result.soft.length === 0
-    ? allow()
-    : allow(module.warnReason(subject.label, result.soft));
+  const warnings = results
+    .filter(({ result }) => result.soft.length > 0)
+    .map(({ subject, result }) => module.warnReason(subject.label, result.soft));
+  return warnings.length === 0 ? allow() : allow(warnings.join("\n\n"));
 }
 
 /**
@@ -155,8 +160,7 @@ function recordReply({ module, engine }, event, state) {
 
   // `replyReport` in the settings picks the severity this note carries. A fleet
   // that sets every rule to `soft` reads nothing without it.
-  writeState(event.session_id, {
-    ...state,
+  patchState(event.session_id, {
     replied: name,
     pending: module.replyFaults(engine, subject),
   });
@@ -174,7 +178,7 @@ function deliverReply(event, state) {
   if (pending.length === 0) {
     return nothing();
   }
-  writeState(event.session_id, { ...state, pending: [] });
+  patchState(event.session_id, { pending: [] });
   return context(
     "UserPromptSubmit",
     `Your previous reply broke Simplified Technical English ${pending.length} ` +
@@ -211,7 +215,7 @@ function checkReply({ module, engine }, event) {
       };
 }
 
-async function answer(event, state) {
+async function answer(event, state, replies) {
   if (event.hook_event_name === "SessionStart") {
     const { module, engine, fault } = await ruleLayer(event.cwd);
     const text = module.promptText(engine);
@@ -224,13 +228,16 @@ async function answer(event, state) {
     return gate(await ruleLayer(event.cwd), event);
   }
   if (event.hook_event_name === "Stop") {
+    if (replies === "off") {
+      return nothing();
+    }
     const rules = await ruleLayer(event.cwd);
     return state.strict
       ? checkReply(rules, event)
       : recordReply(rules, event, state);
   }
   if (event.hook_event_name === "UserPromptSubmit") {
-    return deliverReply(event, state);
+    return replies === "off" ? nothing() : deliverReply(event, state);
   }
   return nothing();
 }
@@ -254,20 +261,40 @@ function parseEvent(raw) {
 }
 
 /**
+ * The start state of a session that has no `/ste` word, and the reply setting.
+ *
+ * `enabled` and `replies` come from the environment and the config files. With
+ * no setting, checks are on, and the Stop hook checks replies. A broken config also gives
+ * these defaults, and the SessionStart context reports the fault.
+ */
+export function startSettings(cwd) {
+  try {
+    const { enabled, replies } = loadConfig(cwd ?? process.cwd());
+    return {
+      defaults: { ...DEFAULT_STATE, enabled: enabled ?? DEFAULT_STATE.enabled },
+      replies: replies ?? "on",
+    };
+  } catch {
+    return { defaults: DEFAULT_STATE, replies: "on" };
+  }
+}
+
+/**
  * Maps one raw event to one result. The state argument is for a test. In normal
- * use the state comes from the session file.
+ * use the state comes from the session file, or else from the start settings.
  */
 export async function respond(raw, state) {
   const event = parseEvent(raw);
   if (typeof event === "string") {
     return failOpen(event);
   }
-  const current = state ?? readState(event.session_id);
+  const start = startSettings(event.cwd);
+  const current = state ?? readState(event.session_id, start.defaults);
   if (!current.enabled) {
     return event.hook_event_name === "PreToolUse" ? allow() : nothing();
   }
   try {
-    return await answer(event, current);
+    return await answer(event, current, start.replies);
   } catch (error) {
     return failOpen(error.message);
   }

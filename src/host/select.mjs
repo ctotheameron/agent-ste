@@ -7,7 +7,11 @@
  * needs a regexp here.
  */
 
+import { readFileSync, statSync } from "node:fs";
+import { resolve } from "node:path";
+
 import * as engine from "../../dist/ste/ste/select.mjs";
+import * as shell from "../../dist/ste/ste/shell.mjs";
 
 /**
  * The lintable view of a file, or undefined when the file holds no prose.
@@ -112,4 +116,35 @@ export function commitMessage(command) {
   // `git commit -m a -m b` makes one message of two paragraphs.
   const text = found.filter((part) => part !== undefined).join("\n\n");
   return text.trim() === "" ? undefined : text;
+}
+
+// --- prose in a `gh` command ---
+//
+// src/ste/shell.gleam parses the command and labels each field. This file reads
+// a body file from disk. Gleam would need a target-specific FFI for that.
+
+const MAX_BODY_FILE = 1_000_000;
+
+function readBodyFile(path, cwd) {
+  try {
+    const file = resolve(cwd ?? process.cwd(), path);
+    return statSync(file).size > MAX_BODY_FILE ? undefined : readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The title, body and comment fields of the `gh pr` and `gh issue` commands in
+ * a bash command.
+ *
+ * Each entry is `{ text, label }`, for example `the PR body`. A body file is
+ * read from disk, relative to `cwd`. A file that is missing, too large or
+ * unreadable gives no entry.
+ */
+export function ghMessages(command, cwd) {
+  return JSON.parse(shell.gh_texts_json(command)).flatMap(({ label, text, file }) => {
+    const body = file === null ? text : readBodyFile(file, cwd);
+    return body === undefined || body.trim() === "" ? [] : [{ text: body, label }];
+  });
 }

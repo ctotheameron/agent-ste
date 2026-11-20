@@ -9,10 +9,12 @@
 // extension, which src/host/session.mjs documents.
 
 import { argv, stdout } from "node:process";
+import { startSettings } from "../src/host/hook.mjs";
 import { apply, describe, readState, writeState } from "../src/host/session.mjs";
 
 const [sessionId, ...words] = argv.slice(2);
-const state = apply(readState(sessionId), words.join(" "));
+const start = startSettings(process.cwd());
+const state = apply(readState(sessionId, start.defaults), words.join(" "));
 
 try {
   writeState(sessionId, state);
@@ -22,4 +24,4 @@ try {
   stdout.write(`ste: the state failed to save: ${error.message}\n`);
 }
 
-stdout.write(`${describe(state)}\n`);
+stdout.write(`${describe(state, start.replies)}\n`);

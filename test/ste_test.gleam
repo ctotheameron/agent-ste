@@ -1,10 +1,12 @@
 import gleam/list
+import gleam/option
 import gleam/string
 import gleeunit
 import gleeunit/should
 import ste
 import ste/rule.{type Violation}
 import ste/select
+import ste/shell
 import ste/source
 
 pub fn main() {
@@ -681,4 +683,57 @@ pub fn a_block_marker_inside_a_string_is_not_a_comment_test() {
   select.lintable_text("a.ts", "const ignore = \".git/*\";\nconst utilize = 1;")
   |> string.trim
   |> should.equal("")
+}
+
+// --- the shell reader ---
+
+fn words(command: shell.Command) -> List(String) {
+  list.map(command.words, fn(word) { word.value })
+}
+
+pub fn shell_splits_quotes_operators_and_comments_test() {
+  let assert [first, second, third] =
+    shell.commands("echo 'a b' \"c d\" e\\ f # no\nls | wc")
+  words(first) |> should.equal(["echo", "a b", "c d", "e f"])
+  words(second) |> should.equal(["ls"])
+  words(third) |> should.equal(["wc"])
+}
+
+pub fn shell_keeps_a_heredoc_body_for_its_command_test() {
+  let assert [command] =
+    shell.commands("cat - <<'EOF'\nline one\nline two\nEOF\n")
+  command.stdin |> should.equal("line one\nline two")
+}
+
+pub fn shell_marks_a_substitution_as_dynamic_test() {
+  let assert [command] = shell.commands("gh pr create --body \"$(date) now\"")
+  let assert [_, _, _, _, body] = command.words
+  body.dynamic |> should.be_true
+}
+
+pub fn gh_reads_a_title_and_a_heredoc_body_test() {
+  let command =
+    "gh pr create --title \"feat: add it\" --body \"$(cat <<'EOF'\nIt says \"hi\" (twice).\nEOF\n)\""
+  shell.gh_texts(command)
+  |> should.equal([
+    shell.GhText("the PR title", "feat: add it", option.None),
+    shell.GhText("the PR body", "It says \"hi\" (twice).", option.None),
+  ])
+}
+
+pub fn gh_reads_a_body_file_path_test() {
+  shell.gh_texts("gh issue comment 4 -F /tmp/note.md")
+  |> should.equal([
+    shell.GhText("the issue comment (note.md)", "", option.Some("/tmp/note.md")),
+  ])
+}
+
+pub fn gh_skips_a_value_that_is_not_prose_test() {
+  list.each(
+    [
+      "gh pr list -b main", "gh pr create -t x", "gh pr create --body \"$BODY\"",
+      "gh pr merge 5 -b main", "gh api x -f body=\"we ship it today\"",
+    ],
+    fn(command) { shell.gh_texts(command) |> should.equal([]) },
+  )
 }

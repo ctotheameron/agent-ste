@@ -42,20 +42,23 @@ export function statePath(sessionId) {
 /**
  * Reads the state of a session.
  *
- * Every error gives the default. A missing file is the normal first read, and a
+ * Every error returns `defaults`. A missing file is the normal first read. A
  * damaged file must not stop the linter.
+ *
+ * `defaults` is the start state from the config and the environment. A value in
+ * the session file, which `/ste` writes, overrides it.
  */
-export function readState(sessionId) {
+export function readState(sessionId, defaults = DEFAULT_STATE) {
   try {
     const raw = JSON.parse(readFileSync(statePath(sessionId), "utf8"));
     return {
-      enabled: raw.enabled !== false,
+      enabled: typeof raw.enabled === "boolean" ? raw.enabled : defaults.enabled,
       strict: raw.strict === true,
       pending: Array.isArray(raw.pending) ? raw.pending : [],
       replied: typeof raw.replied === "string" ? raw.replied : "",
     };
   } catch {
-    return DEFAULT_STATE;
+    return defaults;
   }
 }
 
@@ -72,6 +75,23 @@ export function identify(text) {
 export function writeState(sessionId, state) {
   mkdirSync(DIRECTORY, { recursive: true });
   writeFileSync(statePath(sessionId), JSON.stringify(state));
+}
+
+/**
+ * Saves some fields, and keeps the rest of the file as it is.
+ *
+ * A hook that saves a reply fault must not write `enabled`. A saved `enabled`
+ * would override the config and the environment for the rest of the session.
+ * Only a `/ste` word writes it.
+ */
+export function patchState(sessionId, fields) {
+  let raw = {};
+  try {
+    raw = JSON.parse(readFileSync(statePath(sessionId), "utf8"));
+  } catch {
+    // A missing or damaged file leaves only `fields` to write.
+  }
+  writeState(sessionId, { ...raw, ...fields });
 }
 
 /**
@@ -98,9 +118,12 @@ export function apply(state, word) {
 }
 
 /** One line for the user, and for the model that reads the command output. */
-export function describe(state) {
+export function describe(state, replies = "on") {
   if (!state.enabled) {
-    return "STE off. No hook checks a write, a commit message or a reply.";
+    return "STE off. No hook checks a write, a commit message, a gh text or a reply.";
+  }
+  if (replies === "off") {
+    return `STE on, replies off. A write, a commit message and a gh text still block.`;
   }
   const reply = state.strict
     ? "A hard violation in a reply blocks the stop, one time."

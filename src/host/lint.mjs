@@ -12,7 +12,12 @@
  */
 
 import * as engine from "../../dist/ste/ste.mjs";
-import { bashMessage, bashMessageLabel, lintableText } from "./select.mjs";
+import {
+  bashMessage,
+  bashMessageLabel,
+  ghMessages,
+  lintableText,
+} from "./select.mjs";
 
 /** Every rule name the roster holds. A host checks a config against this. */
 export function ruleNames() {
@@ -165,6 +170,18 @@ export function commitSubject(command) {
   return message === undefined
     ? undefined
     : { text: message, label: bashMessageLabel(command) };
+}
+
+/**
+ * The subjects in a bash command. The `-m` or `--message` text comes first, if
+ * present. Each title, body or comment of a `gh pr` or `gh issue` command
+ * follows. Each field is a separate subject, so a block reason names the failing field.
+ * `cwd` is the base directory for a relative `--body-file` path.
+ */
+export function bashSubjects(command, cwd) {
+  const message = commitSubject(command);
+  const gh = ghMessages(command, cwd);
+  return message === undefined ? gh : [message, ...gh];
 }
 
 /** The subject for assistant prose, or undefined when the text is blank. */
